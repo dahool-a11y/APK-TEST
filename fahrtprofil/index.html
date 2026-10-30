@@ -1,0 +1,263 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Fahrtprofil – GPS &amp; Verbrauch</title>
+  <meta name="theme-color" content="#070b10">
+  <meta name="description" content="Offline-Karte, GPS-Aufzeichnung und Verbrauchsprofil für Fahrten.">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon-192.png" sizes="192x192" type="image/png">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="stylesheet" href="vendor/leaflet.css">
+  <link rel="stylesheet" href="styles.css?v=25">
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none">
+            <path d="M5 17.5c3.5 0 3.5-5 7-5s3.5-5 7-5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+            <circle cx="5" cy="17.5" r="2" fill="currentColor"/>
+            <circle cx="19" cy="7.5" r="2" fill="currentColor"/>
+          </svg>
+        </div>
+        <div class="brand-text">
+          <h1>Fahrtprofil</h1>
+          <p>GPS · Verbrauch · Strecke</p>
+        </div>
+      </div>
+
+      <div class="trip">
+        <span class="trip-name" id="tripName">München – Starnberg – Herrsching</span>
+        <span class="trip-date" id="tripDate">Simulierte Fahrt</span>
+      </div>
+
+      <div class="header-actions">
+        <button class="btn ghost" id="btnTrips" title="Gespeicherte Fahrten" aria-label="Gespeicherte Fahrten" aria-haspopup="dialog">
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M8 6h12M8 12h12M8 18h12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="4" cy="6" r="1.4" fill="currentColor"/><circle cx="4" cy="12" r="1.4" fill="currentColor"/><circle cx="4" cy="18" r="1.4" fill="currentColor"/></svg>
+          <span class="btn-text">Fahrten</span>
+          <b class="count" id="tripCount" hidden>0</b>
+        </button>
+        <button class="btn ghost" id="btnShuffle" title="Neue simulierte Fahrt erzeugen">
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 12a8 8 0 0 1 13.7-5.6M20 12a8 8 0 0 1-13.7 5.6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M17 3v4h-4M7 21v-4h4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <span class="btn-text">Neu simulieren</span>
+        </button>
+        <label class="btn ghost" for="fileInput" title="GPX, CSV oder JSON laden">
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+          <span class="btn-text">Daten laden</span>
+        </label>
+        <button class="btn ghost rec-btn" id="btnRecord" title="GPS-Aufzeichnung starten">
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.8"/><path d="M5.5 5.5a9.2 9.2 0 0 0 0 13M18.5 5.5a9.2 9.2 0 0 1 0 13M8.5 8.5a5 5 0 0 0 0 7M15.5 8.5a5 5 0 0 1 0 7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+          <span id="recordLabel">GPS</span>
+        </button>
+        <button class="btn icon" id="btnInstall" title="App installieren" aria-label="App installieren" hidden>
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="7" y="2.5" width="10" height="19" rx="2.2" stroke="currentColor" stroke-width="1.7"/><path d="M12 7v6m0 0 2.5-2.5M12 13l-2.5-2.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="17.8" r="1" fill="currentColor"/></svg>
+        </button>
+        <button class="btn icon" id="btnExport" title="Als JSON exportieren" aria-label="Als JSON exportieren">
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 4v12m0 0 4.5-4.5M12 16l-4.5-4.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 18v1a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        </button>
+        <input type="file" id="fileInput" accept=".json,.csv,.txt,.gpx" hidden>
+      </div>
+    </header>
+
+    <div class="workspace">
+      <main>
+      <section class="map-panel">
+        <div id="map"></div>
+
+        <div class="map-card detail" id="detailCard" hidden>
+          <div class="detail-head">
+            <span class="phase" id="detailPhase">Landstraße</span>
+            <button class="detail-close" id="detailClose" title="Auswahl aufheben" aria-label="Auswahl aufheben" hidden>&times;</button>
+          </div>
+          <div class="detail-value">
+            <strong id="detailCons">–</strong>
+            <span>L/100 km</span>
+          </div>
+          <div class="detail-grid">
+            <div><span>Tempo</span><b id="detailSpeed">–</b></div>
+            <div><span>Höhe</span><b id="detailEle">–</b></div>
+            <div><span>Strecke</span><b id="detailKm">–</b></div>
+            <div><span>Fahrzeit</span><b id="detailTime">–</b></div>
+          </div>
+          <div class="detail-hint" id="detailHint">Klick auf die Karte fixiert den Punkt</div>
+        </div>
+
+        <div class="map-card legend" id="legend">
+          <div class="legend-head"><span>Verbrauch</span><span class="legend-unit">L/100 km</span></div>
+          <div class="legend-bar"></div>
+          <div class="legend-labels"><span>0</span><span>4</span><span>8</span><span>12</span><span>16+</span></div>
+          <div class="legend-note"><i></i> Offline-Karte · OpenStreetMap</div>
+        </div>
+
+        <div class="map-hint" id="mapHint">Strecke antippen oder über die Karte fahren</div>
+
+        <div class="map-card recorder" id="recorder" hidden>
+          <div class="rec-head">
+            <span class="rec-dot"></span>
+            <span class="rec-state" id="recState">GPS wird gesucht …</span>
+            <span class="rec-clock" id="recTime">0:00</span>
+          </div>
+          <div class="rec-grid">
+            <div><span>Strecke</span><b id="recDist">0 m</b></div>
+            <div><span>Tempo</span><b id="recSpeed">–</b></div>
+            <div><span>Genauigkeit</span><b id="recAcc">–</b></div>
+            <div><span>Punkte</span><b id="recPoints">0</b></div>
+          </div>
+          <div class="rec-actions">
+            <button class="btn rec-stop" id="btnStopRec">Stopp &amp; auswerten</button>
+            <button class="btn subtle" id="btnDiscardRec">Verwerfen</button>
+          </div>
+          <div class="rec-note">Ohne OBD-Daten wird der Verbrauch geschätzt.</div>
+        </div>
+      </section>
+
+      <section class="chart-panel">
+        <div class="chart-head">
+          <div class="chart-title">
+            <h2>Verbrauchsprofil</h2>
+            <p>Verbrauch entlang der Strecke</p>
+          </div>
+          <div class="phase-legend" id="phaseLegend"></div>
+        </div>
+        <div class="chart-wrap" id="chartWrap">
+          <canvas id="chart"></canvas>
+          <div class="chart-tip" id="chartTip" hidden></div>
+        </div>
+        <div class="playbar">
+          <button class="play" id="btnPlay" aria-label="Wiedergabe starten" title="Wiedergabe (Leertaste)">
+            <svg class="icon-play" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l11-6.5z" fill="currentColor"/></svg>
+            <svg class="icon-pause" viewBox="0 0 24 24" aria-hidden="true"><path d="M7.5 5h3v14h-3zM13.5 5h3v14h-3z" fill="currentColor"/></svg>
+          </button>
+          <span class="time" id="timeCurrent">0:00</span>
+          <input type="range" id="scrub" min="0" max="1000" value="0" step="1" aria-label="Fahrtposition">
+          <span class="time" id="timeTotal">0:00</span>
+          <label class="follow"><input type="checkbox" id="follow" checked><span>Folgen</span></label>
+        </div>
+      </section>
+    </main>
+
+      <aside class="rail" aria-label="Kennzahlen der aktuellen Fahrt">
+        <div class="rail-head">
+          <span class="rail-eyebrow">Aktuelle Fahrt</span>
+        </div>
+
+        <div class="rail-kpis">
+          <article class="rstat rstat-hero">
+            <span class="rstat-label">Strecke</span>
+            <b class="rstat-value"><span id="statDist">–</span><small>km</small></b>
+            <span class="rstat-sub" id="statFuel">–</span>
+          </article>
+          <article class="rstat">
+            <span class="rstat-label">Ø Verbrauch</span>
+            <b class="rstat-value"><span id="statAvg">–</span><small>L/100</small></b>
+          </article>
+          <article class="rstat">
+            <span class="rstat-label">Fahrzeit</span>
+            <b class="rstat-value"><span id="statTime">–</span></b>
+          </article>
+          <article class="rstat">
+            <span class="rstat-label">Ø Tempo</span>
+            <b class="rstat-value"><span id="statSpeed">–</span><small>km/h</small></b>
+          </article>
+          <article class="rstat">
+            <span class="rstat-label">Spitze</span>
+            <b class="rstat-value"><span id="statMax">–</span><small>L/100</small></b>
+          </article>
+        </div>
+
+        <div class="rail-foot">
+          <span class="source" id="sourceBadge">Simulation</span>
+          <span class="rail-archive" id="railArchive">Noch keine Fahrten</span>
+          <button class="rail-action" id="btnTripsRail" type="button" aria-haspopup="dialog">
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M8 6h12M8 12h12M8 18h12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="4" cy="6" r="1.4" fill="currentColor"/><circle cx="4" cy="12" r="1.4" fill="currentColor"/><circle cx="4" cy="18" r="1.4" fill="currentColor"/></svg>
+            <span>Fahrten</span>
+            <b class="rail-count" id="railTripCount">0</b>
+          </button>
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  <section class="trips-page" id="tripsDrawer" role="dialog" aria-modal="true" aria-labelledby="tripsTitle" hidden>
+    <header class="tp-head">
+      <div class="tp-title">
+        <span class="tp-eyebrow">Übersicht</span>
+        <h2 id="tripsTitle">Fahrten</h2>
+        <p>Alle Fahrten auf diesem Gerät</p>
+      </div>
+      <button class="tp-close" id="tripsClose" type="button" title="Zurück zur Karte" aria-label="Zurück zur Karte">
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M15 6l-6 6 6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span>Zur Karte</span>
+      </button>
+    </header>
+
+    <div class="tp-scroll">
+      <div class="tp-kpis">
+        <article class="kpi">
+          <span class="kpi-label">Gesamtstrecke</span>
+          <b class="kpi-value" id="sumKm">0 km</b>
+          <span class="kpi-sub" id="sumKmSub">noch keine Fahrt</span>
+        </article>
+        <article class="kpi">
+          <span class="kpi-label">Ø Verbrauch</span>
+          <b class="kpi-value" id="sumAvg">–</b>
+          <span class="kpi-sub">gewichteter Schnitt</span>
+        </article>
+        <article class="kpi">
+          <span class="kpi-label">Verbrauch gesamt</span>
+          <b class="kpi-value" id="sumFuel">–</b>
+          <span class="kpi-sub" id="sumFuelSub">gesamt</span>
+        </article>
+        <article class="kpi">
+          <span class="kpi-label">Fahrten</span>
+          <b class="kpi-value" id="sumTrips">0</b>
+          <span class="kpi-sub">gespeichert</span>
+        </article>
+        <article class="kpi">
+          <span class="kpi-label">Fahrzeit</span>
+          <b class="kpi-value" id="sumTime">–</b>
+          <span class="kpi-sub">Summe</span>
+        </article>
+        <article class="kpi">
+          <span class="kpi-label">Ø Tempo</span>
+          <b class="kpi-value" id="sumSpeed">–</b>
+          <span class="kpi-sub">im Schnitt</span>
+        </article>
+      </div>
+
+      <section class="tp-listwrap">
+        <div class="tp-listhead">
+          <h3>Fahrten <b class="tp-count" id="tripListCount">0</b></h3>
+          <span class="tp-hint">Antippen zum Öffnen</span>
+        </div>
+        <div class="trips-list" id="tripsList"></div>
+        <div class="trips-empty" id="tripsEmpty" hidden>
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 16a8 8 0 1 1 16 0" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><path d="M12 16l4.2-5.2" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><circle cx="12" cy="16" r="1.6" fill="currentColor"/></svg>
+          <p>Noch keine Fahrten gespeichert.</p>
+          <span>GPS-Aufzeichnungen und importierte Dateien erscheinen automatisch hier.</span>
+        </div>
+      </section>
+    </div>
+
+    <footer class="tp-foot">
+      <span>Fahrten bleiben lokal auf diesem Gerät.</span>
+      <span>Löschen entfernt die Aufzeichnung dauerhaft.</span>
+    </footer>
+  </section>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script src="vendor/leaflet.js"></script>
+  <script src="data/basemap.js?v=25"></script>
+  <script src="js/basemap.js?v=25"></script>
+  <script src="js/simulate.js?v=25"></script>
+  <script src="js/data.js?v=25"></script>
+  <script src="js/store.js?v=25"></script>
+  <script src="js/app.js?v=25"></script>
+</body>
+</html>
