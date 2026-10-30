@@ -1,10 +1,12 @@
 package de.blumenthalmedia.balltest
 
+import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageInstaller
 import android.net.Uri
+import android.os.Build
 import android.provider.Settings
-import androidx.core.content.FileProvider
 import androidx.core.content.pm.PackageInfoCompat
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -110,12 +112,35 @@ object Updater {
         context.startActivity(intent)
     }
 
+    /**
+     * Installiert die APK über eine PackageInstaller-Session. Das Ergebnis kommt
+     * asynchron im [InstallReceiver] an und wird in [InstallStatus] abgelegt.
+     */
     fun install(context: Context, apk: File) {
-        val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", apk)
-        val intent = Intent(Intent.ACTION_VIEW).apply {
-            setDataAndType(uri, "application/vnd.android.package-archive")
-            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+        InstallStatus.message = "Installation wird vorbereitet …"
+        val installer = context.packageManager.packageInstaller
+        val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL)
+        params.setAppPackageName(context.packageName)
+        if (Build.VERSION.SDK_INT >= 31) {
+            // Bei Updates ohne zusätzliche Rückfrage, wenn Android das erlaubt
+            params.setRequireUserAction(PackageInstaller.SessionParams.USER_ACTION_NOT_REQUIRED)
         }
-        context.startActivity(intent)
+        val sessionId = installer.createSession(params)
+        installer.openSession(sessionId).use { session ->
+            apk.inputStream().use { input ->
+                session.openWrite("update.apk", 0, apk.length()).use { out ->
+                    input.copyTo(out)
+                    session.fsync(out)
+                }
+            }
+            val intent = Intent(context, InstallReceiver::class.java).setPackage(context.packageName)
+            val pending = PendingIntent.getBroadcast(
+                context,
+                sessionId,
+                intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
+            )
+            session.commit(pending.intentSender)
+        }
     }
 }

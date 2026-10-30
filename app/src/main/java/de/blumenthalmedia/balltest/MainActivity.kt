@@ -310,7 +310,8 @@ sealed interface UpdateState {
     data class Available(val info: UpdateInfo) : UpdateState
     data class Downloading(val progress: Float) : UpdateState
     data class Ready(val file: File, val needsPermission: Boolean) : UpdateState
-    data class Error(val message: String) : UpdateState
+    data class Error(val message: String) : UpdateState                         // Update-Prüfung, bleibt unsichtbar
+    data class InstallFailed(val message: String, val info: UpdateInfo) : UpdateState // Download/Installation, wird angezeigt
 }
 
 /**
@@ -338,7 +339,11 @@ fun UpdatePanel(modifier: Modifier = Modifier) {
 
     fun installFile(file: File) {
         if (Updater.canInstall(context)) {
-            Updater.install(context, file)
+            try {
+                Updater.install(context, file)
+            } catch (e: Exception) {
+                InstallStatus.message = "Installation fehlgeschlagen: ${e.message}"
+            }
             state = UpdateState.Ready(file, needsPermission = false)
         } else {
             Updater.openInstallPermissionSettings(context)
@@ -349,11 +354,12 @@ fun UpdatePanel(modifier: Modifier = Modifier) {
     fun downloadAndInstall(info: UpdateInfo) {
         scope.launch {
             try {
+                InstallStatus.message = null
                 state = UpdateState.Downloading(0f)
                 val file = Updater.download(context, info.downloadUrl) { state = UpdateState.Downloading(it) }
                 installFile(file)
             } catch (e: Exception) {
-                state = UpdateState.Error(e.message ?: "Unbekannter Fehler")
+                state = UpdateState.InstallFailed(e.message ?: "Unbekannter Fehler", info)
             }
         }
     }
@@ -363,7 +369,8 @@ fun UpdatePanel(modifier: Modifier = Modifier) {
 
     val visible = state is UpdateState.Available ||
         state is UpdateState.Downloading ||
-        state is UpdateState.Ready
+        state is UpdateState.Ready ||
+        state is UpdateState.InstallFailed
     if (!visible) return
 
     Surface(
@@ -390,7 +397,7 @@ fun UpdatePanel(modifier: Modifier = Modifier) {
                 }
                 is UpdateState.Ready -> {
                     Text(
-                        if (s.needsPermission)
+                        InstallStatus.message ?: if (s.needsPermission)
                             "Bitte erlaube in den Einstellungen die Installation aus dieser Quelle, komm zurück und tippe erneut."
                         else
                             "Installer geöffnet. Falls nichts passiert ist, tippe erneut.",
@@ -398,6 +405,12 @@ fun UpdatePanel(modifier: Modifier = Modifier) {
                     )
                     Button(onClick = { installFile(s.file) }, modifier = Modifier.padding(top = 8.dp)) {
                         Text("Jetzt installieren")
+                    }
+                }
+                is UpdateState.InstallFailed -> {
+                    Text("Update fehlgeschlagen: ${s.message}", color = Color(0xFFFF8A80))
+                    Button(onClick = { downloadAndInstall(s.info) }, modifier = Modifier.padding(top = 8.dp)) {
+                        Text("Erneut versuchen")
                     }
                 }
                 UpdateState.Idle, UpdateState.Checking, UpdateState.UpToDate, is UpdateState.Error -> Unit
