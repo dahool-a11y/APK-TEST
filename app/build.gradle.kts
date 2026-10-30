@@ -1,23 +1,41 @@
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
-    id("org.jetbrains.kotlin.plugin.compose")
 }
 
 // Auf GitHub steigt die Versionsnummer mit jedem Build automatisch (Run-Nummer).
 // Lokal in Android Studio ist es immer 1.
 val buildNumber = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 1
 
+// Die Web-App liegt im Ordner fahrtprofil/ (Repo-Wurzel) und wird beim Build
+// als Asset "www" in die APK kopiert. Es gibt nur eine Quelle, keine zweite Kopie.
+val webOut = File(layout.buildDirectory.get().asFile, "generated/web")
+val copyWebApp = tasks.register<Copy>("copyWebApp") {
+    from(rootProject.file("fahrtprofil")) {
+        exclude("tools/**", "README.md")
+    }
+    into(File(webOut, "www"))
+    includeEmptyDirs = false
+}
+
 android {
     namespace = "de.blumenthalmedia.balltest"
     compileSdk = 35
 
     defaultConfig {
+        // Die Paket-ID bleibt bewusst "balltest": Nur so ersetzt die neue App die
+        // alte Ball-App beim Update, statt als zweite App daneben zu landen.
         applicationId = "de.blumenthalmedia.balltest"
         minSdk = 26
         targetSdk = 35
         versionCode = buildNumber
-        versionName = "0.1.$buildNumber"
+        versionName = "0.2.$buildNumber"
+    }
+
+    sourceSets {
+        getByName("main") {
+            assets.srcDir(webOut)
+        }
     }
 
     // TESTSCHLÜSSEL: liegt bewusst im Repo, damit jeder Build (lokal und auf GitHub)
@@ -49,18 +67,20 @@ android {
     kotlinOptions {
         jvmTarget = "17"
     }
-
-    buildFeatures {
-        compose = true
-    }
 }
 
+// Alle Tasks, die Assets lesen, müssen erst die Web-App kopieren lassen
+tasks.configureEach {
+    if (name != "copyWebApp" && (name.startsWith("merge") && name.endsWith("Assets"))) {
+        dependsOn(copyWebApp)
+    }
+}
+tasks.named("preBuild") { dependsOn(copyWebApp) }
+
 dependencies {
-    implementation(platform("androidx.compose:compose-bom:2024.10.01"))
-    implementation("androidx.activity:activity-compose:1.9.3")
     implementation("androidx.core:core-ktx:1.13.1")
+    implementation("androidx.activity:activity-ktx:1.9.3")
+    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
+    implementation("androidx.webkit:webkit:1.12.1")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
-    implementation("androidx.compose.ui:ui")
-    implementation("androidx.compose.foundation:foundation")
-    implementation("androidx.compose.material3:material3")
 }

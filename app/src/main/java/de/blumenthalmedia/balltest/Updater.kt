@@ -117,7 +117,7 @@ object Updater {
      * asynchron im [InstallReceiver] an und wird in [InstallStatus] abgelegt.
      */
     fun install(context: Context, apk: File) {
-        InstallStatus.message = "Installation wird vorbereitet …"
+        InstallStatus.post("Installation wird vorbereitet …")
         val installer = context.packageManager.packageInstaller
         val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL)
         params.setAppPackageName(context.packageName)

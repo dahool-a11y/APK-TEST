@@ -56,9 +56,31 @@ Die Aufzeichnung nutzt die Browser-Geolocation-API. Wichtig:
 - Schlechte Genauigkeit (> 100 m) wird verworfen, Sprünge unter 1,5 m in kurzer
   Zeit werden gefiltert.
 
-Eine native Android-App wäre für dauerhaftes Hintergrund-Tracking robuster;
-dafür fehlen in dieser Umgebung Android SDK, Gradle und Java. Die Web-App ist
-deren Prototyp.
+Für dauerhaftes Hintergrund-Tracking gibt es die **Android-App** (siehe unten):
+Sie bettet diese Web-App ein und nutzt einen GPS-Vordergrunddienst.
+
+## Android-App
+
+Im Repo-Ordner darüber (`app/`) steckt eine Android-Hülle (Kotlin, WebView). Der
+Ordner `fahrtprofil/` ist die einzige Quelle der Oberfläche: Beim Build wird er als
+Asset `www` in die APK kopiert (ohne `tools/` und README).
+
+- **Start**: lokale Auslieferung über `https://appassets.androidplatform.net/`
+  (sicherer Kontext, kein Server nötig, alles offline).
+- **GPS**: `js/native-bridge.js` ersetzt `navigator.geolocation`. Ein
+  Vordergrunddienst sammelt Punkte jede Sekunde, auch bei ausgeschaltetem
+  Bildschirm. Die Web-App holt sie ab und wertet sie wie normale Positionen aus.
+- **Export**: „Als JSON exportieren“ öffnet das Teilen-Menü.
+- **Import**: „Daten laden“ öffnet den Android-Dateiauswähler.
+- **Updates**: Die App fragt beim Start die GitHub-Release `latest` ab und zeigt nur
+  bei einer neueren Version ein Banner mit „Herunterladen und installieren“.
+- **Service Worker**: in der App deaktiviert (alles liegt ohnehin lokal).
+- **Paket-ID**: bleibt `de.blumenthalmedia.balltest`, damit die App die frühere
+  Ball-Test-App ersetzt.
+- Jeder Push auf `main` baut per GitHub Actions eine neue APK.
+
+Grenzen: Wird die App aus der Übersicht weggewischt, endet auch die Aufzeichnung.
+Punkte liegen nur im Arbeitsspeicher, bis die Fahrt beendet und gespeichert wird.
 
 ## Gespeicherte Fahrten
 

@@ -851,7 +851,9 @@
     const acc = Number.isFinite(c.accuracy) ? c.accuracy : 999;
     const lat = c.latitude;
     const lng = c.longitude;
-    const time = (c.timestamp || Date.now()) / 1000;
+    // Der Zeitstempel hängt an pos, nicht an pos.coords. Wichtig, wenn die App im
+    // Hintergrund Punkte sammelt und gebündelt abliefert.
+    const time = (pos.timestamp || Date.now()) / 1000;
 
     if (acc > 100 && rec.points.length > 0) {
       $('recState').textContent = 'GPS-Genauigkeit schwach …';
@@ -901,7 +903,7 @@
     if (!rec.active) return;
     if (err.code === 1) {
       $('recState').textContent = 'GPS-Zugriff verweigert';
-      toast('GPS-Zugriff wurde verweigert. Bitte in den Browser-Einstellungen erlauben.', true);
+      toast('GPS-Zugriff wurde verweigert. Bitte in den Einstellungen erlauben.', true);
       stopRecording(false);
       return;
     }
@@ -1310,7 +1312,8 @@
   }
 
   function setupPWA() {
-    if ('serviceWorker' in navigator &&
+    // In der Android-App liegen alle Dateien lokal, ein Service Worker ist dort überflüssig.
+    if (!window.__native && 'serviceWorker' in navigator &&
         (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1')) {
       window.addEventListener('load', () => {
         navigator.serviceWorker.register('sw.js').catch(() => {});
@@ -1358,11 +1361,20 @@
         phase: p.phase || undefined
       }))
     };
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const fileName = 'fahrtprofil-' + new Date().toISOString().slice(0, 10) + '.json';
+    const text = JSON.stringify(data, null, 2);
+
+    // In der Android-App öffnet sich das Teilen-Menü (Download per Blob geht im WebView nicht).
+    if (window.AndroidBridge && typeof AndroidBridge.shareFile === 'function') {
+      AndroidBridge.shareFile(fileName, 'application/json', text);
+      return;
+    }
+
+    const blob = new Blob([text], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'fahrtprofil-' + new Date().toISOString().slice(0, 10) + '.json';
+    a.download = fileName;
     document.body.appendChild(a);
     a.click();
     a.remove();

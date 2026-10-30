@@ -3,8 +3,6 @@ name: Build APK
 on:
   push:
     branches: [main]
-    paths-ignore:
-      - 'fahrtprofil/**'
   workflow_dispatch:
 
 permissions:
@@ -38,9 +36,9 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          cp app/build/outputs/apk/debug/app-debug.apk BallTest.apk
+          cp app/build/outputs/apk/debug/app-debug.apk Fahrtprofil.apk
           gh release delete latest --cleanup-tag --yes || true
-          gh release create latest BallTest.apk \
+          gh release create latest Fahrtprofil.apk \
             --title "Build ${{ github.run_number }}" \
             --notes "versionCode=${{ github.run_number }} · Commit ${GITHUB_SHA::7}" \
             --prerelease

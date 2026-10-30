@@ -4,14 +4,20 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageInstaller
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
+import android.os.Handler
+import android.os.Looper
 import androidx.core.content.IntentCompat
 
-/** Letzter Installationsstatus, wird im Update-Overlay angezeigt. */
+/** Letzter Installationsstatus; das Update-Banner hört hier mit. */
 object InstallStatus {
-    var message by mutableStateOf<String?>(null)
+    private val main = Handler(Looper.getMainLooper())
+
+    @Volatile
+    var listener: ((String) -> Unit)? = null
+
+    fun post(message: String) {
+        main.post { listener?.invoke(message) }
+    }
 }
 
 /** Empfängt die Rückmeldungen der PackageInstaller-Session. */
@@ -26,16 +32,16 @@ class InstallReceiver : BroadcastReceiver() {
                 val confirm = IntentCompat.getParcelableExtra(intent, Intent.EXTRA_INTENT, Intent::class.java)
                 if (confirm != null) {
                     confirm.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    InstallStatus.message = "Bitte im Android-Dialog bestätigen …"
+                    InstallStatus.post("Bitte im Android-Dialog bestätigen …")
                     context.startActivity(confirm)
                 } else {
-                    InstallStatus.message = "Installation fehlgeschlagen: kein Bestätigungsdialog erhalten"
+                    InstallStatus.post("Installation fehlgeschlagen: kein Bestätigungsdialog erhalten")
                 }
             }
             PackageInstaller.STATUS_SUCCESS ->
-                InstallStatus.message = "Installation erfolgreich – App startet neu …"
+                InstallStatus.post("Installation erfolgreich – die App startet neu …")
             else ->
-                InstallStatus.message = "Installation fehlgeschlagen (Code $status): $detail"
+                InstallStatus.post("Installation fehlgeschlagen (Code $status): $detail")
         }
     }
 }
