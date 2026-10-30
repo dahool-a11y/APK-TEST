@@ -1,5 +1,11 @@
 package de.blumenthalmedia.balltest
 
+import android.app.Activity
+import android.content.Context
+import android.hardware.Sensor
+import android.hardware.SensorEvent
+import android.hardware.SensorEventListener
+import android.hardware.SensorManager
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -19,11 +25,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -47,11 +53,17 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 import java.io.File
+import kotlin.math.PI
 import kotlin.math.abs
+import kotlin.math.cos
+import kotlin.math.sin
 import kotlin.random.Random
 
-// Ballfarben (Highlight, Mitte, Rand). Wird beim Update-Test geändert.
-private val BallColors = listOf(Color(0xFFFFE082), Color(0xFFFF7043), Color(0xFFBF360C))
+// Ballfarben (Highlight, Mitte, Rand)
+private val BallColors = listOf(Color(0xFF9BE7FF), Color(0xFF2196F3), Color(0xFF0D3C8C))
+
+// Erdbeschleunigung in m/s²
+private const val G = 9.81f
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -70,18 +82,62 @@ fun BounceScreen() {
     val context = LocalContext.current
     val density = LocalDensity.current
     val radius = with(density) { 28.dp.toPx() }
-    val gravity = with(density) { 2400.dp.toPx() }      // px / s²
-    val kickSpeed = with(density) { 1500.dp.toPx() }    // Absprunggeschwindigkeit
-    val minBounce = with(density) { 500.dp.toPx() }     // darunter: Auto-Kick
+    // Umrechnung: 1 m/s² Sensorwert = so viele px/s² auf dem Bildschirm
+    val accScale = with(density) { 2400.dp.toPx() } / G
+    val kickSpeed = with(density) { 1500.dp.toPx() }    // Referenz für Aufprallstärke / Stoß
+    val minBounce = with(density) { 500.dp.toPx() }     // nur im Fallback ohne Sensor
+    val restitution = 0.8f                              // wie stark der Ball zurückfedert
 
     var size by remember { mutableStateOf(IntSize.Zero) }
     var x by remember { mutableFloatStateOf(0f) }
     var y by remember { mutableFloatStateOf(0f) }
     var vx by remember { mutableFloatStateOf(0f) }
     var vy by remember { mutableFloatStateOf(0f) }
-    var squash by remember { mutableFloatStateOf(0f) }   // 0..1, kurz nach dem Aufprall
+    var squashH by remember { mutableFloatStateOf(0f) }  // Stauchung nach Aufprall an linker/rechter Wand
+    var squashV by remember { mutableFloatStateOf(0f) }  // Stauchung nach Aufprall an Boden/Decke
+    var impactNx by remember { mutableFloatStateOf(0f) } // Richtung weg von der getroffenen Wand
+    var impactNy by remember { mutableFloatStateOf(0f) }
     var fps by remember { mutableFloatStateOf(0f) }
     var bounces by remember { mutableFloatStateOf(0f) }
+
+    // Sensor: Beschleunigung in Bildschirmrichtung (m/s²), x nach rechts, y nach unten
+    var hasSensor by remember { mutableStateOf(true) }
+    var gx by remember { mutableFloatStateOf(0f) }
+    var gy by remember { mutableFloatStateOf(G) }
+
+    DisposableEffect(Unit) {
+        val sm = context.getSystemService(Context.SENSOR_SERVICE) as SensorManager
+        val sensor = sm.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
+        if (sensor == null) {
+            hasSensor = false
+            onDispose { }
+        } else {
+            val listener = object : SensorEventListener {
+                override fun onSensorChanged(event: SensorEvent) {
+                    val ax = event.values[0]
+                    val ay = event.values[1]
+                    @Suppress("DEPRECATION")
+                    val rotation = (context as? Activity)?.windowManager?.defaultDisplay?.rotation ?: 0
+                    // Sensorachsen sind fest am Gerät, deshalb je nach Bildschirmdrehung umrechnen
+                    val tx: Float
+                    val ty: Float
+                    when (rotation) {
+                        1 -> { tx = ay; ty = ax }      // 90°
+                        2 -> { tx = ax; ty = -ay }     // 180°
+                        3 -> { tx = -ay; ty = -ax }    // 270°
+                        else -> { tx = -ax; ty = ay }  // 0° (Hochformat)
+                    }
+                    // leichte Glättung gegen Zittern
+                    gx += (tx - gx) * 0.25f
+                    gy += (ty - gy) * 0.25f
+                }
+
+                override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
+            }
+            sm.registerListener(listener, sensor, SensorManager.SENSOR_DELAY_GAME)
+            onDispose { sm.unregisterListener(listener) }
+        }
+    }
 
     // Startposition, sobald die Größe bekannt ist
     LaunchedEffect(size) {
@@ -95,6 +151,16 @@ fun BounceScreen() {
     // Physik-Schleife, ein Schritt pro Frame
     LaunchedEffect(size) {
         if (size.width == 0) return@LaunchedEffect
+
+        fun hit(speed: Float, nx: Float, ny: Float) {
+            val strength = (speed / kickSpeed).coerceIn(0f, 1f)
+            if (strength < 0.12f) return
+            if (nx != 0f) squashH = maxOf(squashH, strength) else squashV = maxOf(squashV, strength)
+            impactNx = nx
+            impactNy = ny
+            bounces += 1f
+        }
+
         var last = 0L
         while (true) {
             withFrameNanos { now ->
@@ -102,24 +168,41 @@ fun BounceScreen() {
                     val dt = ((now - last) / 1_000_000_000f).coerceAtMost(0.05f)
                     if (dt > 0f) fps = fps * 0.9f + (1f / dt) * 0.1f
 
-                    val floor = size.height - radius
-                    val rightWall = size.width - radius
-
-                    vy += gravity * dt
-                    y += vy * dt
+                    // Beschleunigung aus dem Sensor, leichte Dämpfung damit der Ball ausrollt
+                    vx += gx * accScale * dt
+                    vy += gy * accScale * dt
+                    val damp = (1f - 0.35f * dt).coerceAtLeast(0f)
+                    vx *= damp
+                    vy *= damp
                     x += vx * dt
+                    y += vy * dt
 
-                    if (x < radius) { x = radius; vx = abs(vx) }
-                    if (x > rightWall) { x = rightWall; vx = -abs(vx) }
+                    val left = radius
+                    val right = size.width - radius
+                    val top = radius
+                    val bottom = size.height - radius
 
-                    if (y >= floor) {
-                        y = floor
-                        vy = -vy * 0.85f
-                        if (abs(vy) < minBounce) vy = -kickSpeed
-                        squash = 1f
-                        bounces += 1f
+                    if (x < left) {
+                        x = left
+                        if (vx < 0f) { hit(-vx, 1f, 0f); vx = -vx * restitution }
                     }
-                    squash = (squash - dt * 4f).coerceAtLeast(0f)
+                    if (x > right) {
+                        x = right
+                        if (vx > 0f) { hit(vx, -1f, 0f); vx = -vx * restitution }
+                    }
+                    if (y < top) {
+                        y = top
+                        if (vy < 0f) { hit(-vy, 0f, 1f); vy = -vy * restitution }
+                    }
+                    if (y > bottom) {
+                        y = bottom
+                        if (vy > 0f) { hit(vy, 0f, -1f); vy = -vy * restitution }
+                        // Ohne Sensor (z. B. Emulator) springt der Ball weiter von selbst
+                        if (!hasSensor && abs(vy) < minBounce) vy = -kickSpeed
+                    }
+
+                    squashH = (squashH - dt * 4f).coerceAtLeast(0f)
+                    squashV = (squashV - dt * 4f).coerceAtLeast(0f)
                 }
                 last = now
             }
@@ -133,37 +216,39 @@ fun BounceScreen() {
             .onSizeChanged { size = it }
             .pointerInput(Unit) {
                 detectTapGestures {
-                    // Tipp = zusätzlicher Schubs
-                    vy = -kickSpeed * 1.2f
-                    vx = (if (Random.nextBoolean()) 1 else -1) * with(density) { Random.nextInt(250, 600).dp.toPx() }
+                    // Tipp = Stoß in zufällige Richtung
+                    val angle = Random.nextFloat() * 2f * PI.toFloat()
+                    vx += cos(angle) * kickSpeed * 0.7f
+                    vy += sin(angle) * kickSpeed * 0.7f
                 }
             }
     ) {
         Canvas(modifier = Modifier.fillMaxSize()) {
-            val floor = size.height - radius
-            val heightRatio = (1f - ((floor - y) / floor)).coerceIn(0f, 1f)
-
-            // Schatten am Boden: größer und kräftiger, je näher der Ball am Boden ist
-            val shadowW = radius * (0.8f + 1.4f * heightRatio)
-            drawOval(
-                color = Color.Black.copy(alpha = 0.15f + 0.30f * heightRatio),
-                topLeft = Offset(x - shadowW, size.height - radius * 0.35f),
-                size = Size(shadowW * 2f, radius * 0.5f)
-            )
-
-            // Ball mit leichter Stauchung beim Aufprall
-            val sx = 1f + 0.35f * squash
-            val sy = 1f - 0.30f * squash
+            // Ball mit Stauchung beim Aufprall
+            val sx = 1f + 0.35f * squashV - 0.30f * squashH
+            val sy = 1f - 0.30f * squashV + 0.35f * squashH
             val rw = radius * sx
             val rh = radius * sy
-            val cy = y + (radius - rh) // Unterkante bleibt am Boden
+            // Mittelpunkt verschieben, damit die getroffene Seite an der Wand bleibt
+            val cx = x - impactNx * (radius - rw)
+            val cy = y - impactNy * (radius - rh)
+
+            // Schatten: leicht in Richtung der Schwerkraft versetzt
+            val ox = (gx / G).coerceIn(-1.5f, 1.5f) * radius * 0.35f
+            val oy = (gy / G).coerceIn(-1.5f, 1.5f) * radius * 0.35f
+            drawCircle(
+                color = Color.Black.copy(alpha = 0.28f),
+                radius = radius * 1.02f,
+                center = Offset(cx + ox, cy + oy)
+            )
+
             drawOval(
                 brush = Brush.radialGradient(
                     colors = BallColors,
-                    center = Offset(x - rw * 0.3f, cy - rh * 0.3f),
+                    center = Offset(cx - rw * 0.3f, cy - rh * 0.3f),
                     radius = radius * 1.6f
                 ),
-                topLeft = Offset(x - rw, cy - rh),
+                topLeft = Offset(cx - rw, cy - rh),
                 size = Size(rw * 2f, rh * 2f)
             )
         }
@@ -176,12 +261,12 @@ fun BounceScreen() {
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
-                text = "Setup funktioniert ✔",
+                text = "Neige dein Handy",
                 fontSize = 24.sp,
                 color = Color.White
             )
             Text(
-                text = "Version ${Updater.installedVersionName(context)} · Tippen = Extra-Sprung",
+                text = "Version ${Updater.installedVersionName(context)} · Tippen = Stoß",
                 fontSize = 14.sp,
                 color = Color.White.copy(alpha = 0.75f),
                 modifier = Modifier.padding(top = 6.dp)
@@ -191,6 +276,15 @@ fun BounceScreen() {
                 fontSize = 12.sp,
                 color = Color.White.copy(alpha = 0.55f),
                 modifier = Modifier.padding(top = 10.dp)
+            )
+            Text(
+                text = if (hasSensor)
+                    "Neigung: ${"%.1f".format(gx)} / ${"%.1f".format(gy)} m/s²"
+                else
+                    "Kein Beschleunigungssensor – Ball springt von selbst",
+                fontSize = 12.sp,
+                color = Color.White.copy(alpha = 0.55f),
+                modifier = Modifier.padding(top = 2.dp)
             )
             Text(
                 text = "FPS: ${fps.toInt()} · Aufprälle: ${bounces.toInt()}",
@@ -219,6 +313,10 @@ sealed interface UpdateState {
     data class Error(val message: String) : UpdateState
 }
 
+/**
+ * Update-Hinweis: Wird nur eingeblendet, wenn es wirklich eine neuere Version gibt
+ * (oder gerade geladen/installiert wird). Sonst ist nichts zu sehen.
+ */
 @Composable
 fun UpdatePanel(modifier: Modifier = Modifier) {
     val context = LocalContext.current
@@ -263,21 +361,18 @@ fun UpdatePanel(modifier: Modifier = Modifier) {
     // Beim Start automatisch prüfen
     LaunchedEffect(Unit) { check() }
 
+    val visible = state is UpdateState.Available ||
+        state is UpdateState.Downloading ||
+        state is UpdateState.Ready
+    if (!visible) return
+
     Surface(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
-        color = Color.Black.copy(alpha = 0.40f)
+        color = Color.Black.copy(alpha = 0.55f)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             when (val s = state) {
-                UpdateState.Idle -> Text("Update-Prüfung bereit", color = Color.White)
-                UpdateState.Checking -> Text("Suche nach Updates …", color = Color.White)
-                UpdateState.UpToDate -> {
-                    Text("Du hast die neueste Version ✔", color = Color.White)
-                    OutlinedButton(onClick = { check() }, modifier = Modifier.padding(top = 8.dp)) {
-                        Text("Erneut prüfen")
-                    }
-                }
                 is UpdateState.Available -> {
                     Text("Update verfügbar: Build ${s.info.versionCode}", color = Color.White)
                     Button(onClick = { downloadAndInstall(s.info) }, modifier = Modifier.padding(top = 8.dp)) {
@@ -305,12 +400,7 @@ fun UpdatePanel(modifier: Modifier = Modifier) {
                         Text("Jetzt installieren")
                     }
                 }
-                is UpdateState.Error -> {
-                    Text("Update-Prüfung fehlgeschlagen: ${s.message}", color = Color(0xFFFF8A80))
-                    OutlinedButton(onClick = { check() }, modifier = Modifier.padding(top = 8.dp)) {
-                        Text("Erneut versuchen")
-                    }
-                }
+                UpdateState.Idle, UpdateState.Checking, UpdateState.UpToDate, is UpdateState.Error -> Unit
             }
         }
     }
