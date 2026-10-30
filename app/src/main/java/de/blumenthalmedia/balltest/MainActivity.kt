@@ -60,7 +60,7 @@ import kotlin.math.sin
 import kotlin.random.Random
 
 // Ballfarben (Highlight, Mitte, Rand)
-private val BallColors = listOf(Color(0xFF9BE7FF), Color(0xFF2196F3), Color(0xFF0D3C8C))
+private val BallColors = listOf(Color(0xFFC8F7A0), Color(0xFF43A047), Color(0xFF1B5E20))
 
 // Erdbeschleunigung in m/s²
 private const val G = 9.81f
