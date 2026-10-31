@@ -259,3 +259,10 @@ Konsole exponiert (Zoom, Trip-Punkte, Auswahlzustand, Fahrtenarchiv). Vor einer
 - [Leaflet](https://leafletjs.com/) 1.9.4, BSD-2-Clause, lokal in `vendor/`.
 - Der Anwendungscode in diesem Ordner ist ein privates Projekt ohne festgelegte
   Lizenz.
+
+## Navigation und Service (Version 28)
+
+- Drei Reiter oben (und im Kopf jeder Seite): **Tracking** (Karte und Aufzeichnung), **Fahrtenbuch** (gespeicherte Fahrten), **Service**. Die Zurück-Taste führt von Fahrtenbuch und Service zum Tracking.
+- **Service** (`js/service.js`): Tachostand einmal eintragen, danach zählt die App gespeicherte Fahrten dazu. Vier Fristen: Ölwechsel (km und Monate), CSDD-Termin, Ölstand-Kontrolle, Wischwasser-Kontrolle. Ampel grün, gelb (bald fällig), rot (fällig); der Zähler am Reiter zeigt, wie viele Fristen anstehen.
+- Alle Service-Daten liegen im localStorage unter `fahrtprofil.service.v1`, nur lokal.
+- Navigation: `js/nav.js`, Stil: `nav.css`.

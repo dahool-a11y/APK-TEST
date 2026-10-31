@@ -12,8 +12,9 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <link rel="stylesheet" href="vendor/leaflet.css">
-  <link rel="stylesheet" href="styles.css?v=27">
-  <link rel="stylesheet" href="car.css?v=27">
+  <link rel="stylesheet" href="styles.css?v=28">
+  <link rel="stylesheet" href="car.css?v=28">
+  <link rel="stylesheet" href="nav.css?v=28">
 </head>
 <body>
   <div class="app">
@@ -31,6 +32,8 @@
           <p>GPS · Verbrauch · Strecke</p>
         </div>
       </div>
+
+      <nav class="viewnav" data-nav aria-label="Bereiche"></nav>
 
       <div class="trip">
         <span class="trip-name" id="tripName">München – Starnberg – Herrsching</span>
@@ -188,9 +191,10 @@
     <header class="tp-head">
       <div class="tp-title">
         <span class="tp-eyebrow">Übersicht</span>
-        <h2 id="tripsTitle">Fahrten</h2>
+        <h2 id="tripsTitle">Fahrtenbuch</h2>
         <p>Alle Fahrten auf diesem Gerät</p>
       </div>
+      <nav class="viewnav" data-nav aria-label="Bereiche"></nav>
       <button class="tp-close" id="tripsClose" type="button" title="Zurück zur Karte" aria-label="Zurück zur Karte">
         <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M15 6l-6 6 6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
         <span>Zur Karte</span>
@@ -251,15 +255,35 @@
     </footer>
   </section>
 
+  <section class="trips-page service-page" id="servicePage" role="dialog" aria-modal="true" aria-labelledby="serviceTitle" hidden>
+    <header class="tp-head">
+      <div class="tp-title">
+        <span class="tp-eyebrow">Fahrzeug</span>
+        <h2 id="serviceTitle">Service</h2>
+        <p>Fristen und Kontrollen</p>
+      </div>
+      <nav class="viewnav" data-nav aria-label="Bereiche"></nav>
+    </header>
+    <div class="tp-scroll">
+      <div class="sv-grid" id="serviceBody"></div>
+    </div>
+    <footer class="tp-foot">
+      <span>Alle Einträge bleiben lokal auf diesem Gerät.</span>
+      <span>Der Kilometerstand wird aus deinem Tachostand und den gespeicherten Fahrten berechnet.</span>
+    </footer>
+  </section>
+
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
   <script src="vendor/leaflet.js"></script>
-  <script src="js/native-bridge.js?v=27"></script>
-  <script src="data/basemap.js?v=27"></script>
-  <script src="js/basemap.js?v=27"></script>
-  <script src="js/simulate.js?v=27"></script>
-  <script src="js/data.js?v=27"></script>
-  <script src="js/store.js?v=27"></script>
-  <script src="js/app.js?v=27"></script>
+  <script src="js/native-bridge.js?v=28"></script>
+  <script src="data/basemap.js?v=28"></script>
+  <script src="js/basemap.js?v=28"></script>
+  <script src="js/simulate.js?v=28"></script>
+  <script src="js/data.js?v=28"></script>
+  <script src="js/store.js?v=28"></script>
+  <script src="js/app.js?v=28"></script>
+  <script src="js/service.js?v=28"></script>
+  <script src="js/nav.js?v=28"></script>
 </body>
 </html>

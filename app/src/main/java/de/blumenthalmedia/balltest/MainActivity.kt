@@ -63,7 +63,7 @@ class MainActivity : ComponentActivity() {
 
     private val backCallback = object : OnBackPressedCallback(true) {
         override fun handleOnBackPressed() {
-            // Erst die Fahrtenliste schließen, falls sie offen ist
+            // Erst Fahrtenbuch oder Service schließen und zum Tracking zurück
             webView.evaluateJavascript(CLOSE_TRIPS_JS) { result ->
                 if (result != "\"closed\"") {
                     // Läuft eine Aufzeichnung, bleibt die App im Hintergrund erhalten
@@ -260,8 +260,6 @@ class MainActivity : ComponentActivity() {
     private companion object {
         const val START_URL = "https://appassets.androidplatform.net/assets/www/index.html"
         const val CLOSE_TRIPS_JS =
-            "(function(){var d=document.getElementById('tripsDrawer');" +
-                "if(d&&!d.hidden){document.getElementById('tripsClose').click();return 'closed';}" +
-                "return 'none';})()"
+            "(function(){return (window.FahrtNav&&FahrtNav.back())?'closed':'none';})()"
     }
 }
