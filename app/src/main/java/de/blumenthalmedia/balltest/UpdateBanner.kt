@@ -46,7 +46,6 @@ class UpdateBanner(private val activity: Activity, private val scope: CoroutineS
         minimumHeight = dp(52)
         text = "Später"
         visibility = View.GONE
-        setOnClickListener { view.visibility = View.GONE }
     }
 
     private val buttons = LinearLayout(activity).apply {
@@ -83,6 +82,7 @@ class UpdateBanner(private val activity: Activity, private val scope: CoroutineS
     }
 
     init {
+        laterButton.setOnClickListener { view.visibility = View.GONE }
         InstallStatus.listener = { message -> showMessage(message) }
     }
 
