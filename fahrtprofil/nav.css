@@ -178,3 +178,10 @@
 @media (max-height: 540px) {
   .service-page .tp-foot { display: none; }
 }
+
+/* 10-Zoll-Radios (1280 x 720): Platz für den Fahrtnamen schaffen */
+@media (max-width: 1399px) {
+  .topbar .brand-text { display: none; }
+  .topbar #btnShuffle .btn-text,
+  .topbar .btn[for="fileInput"] .btn-text { display: none; }
+}

@@ -37,6 +37,7 @@ body {
 button, input, label { font-family: inherit; }
 
 .app {
+  height: 100vh;
   height: 100dvh;
   display: flex;
   flex-direction: column;
@@ -366,7 +367,10 @@ main {
 
 #map {
   position: absolute;
-  inset: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
   background: #0a1016;
   z-index: 1;
 }
@@ -832,7 +836,10 @@ body.recording .leaflet-route-pane { opacity: 0.16; }
 
 .trips-page {
   position: fixed;
-  inset: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
   z-index: 2100;
   display: flex;
   flex-direction: column;
@@ -1476,7 +1483,8 @@ body.page-open { overflow: hidden; }
 
 @media (max-width: 680px) {
   body { overflow: auto; }
-  .app { height: auto; min-height: 100dvh; }
+  .app { height: auto; min-height: 100vh;
+    min-height: 100dvh; }
   .topbar {
     height: auto;
     flex: none;
@@ -1507,7 +1515,8 @@ body.page-open { overflow: hidden; }
   .rstat-hero .rstat-value { font-size: 23px; }
   .rail-foot { display: none; }
   main { display: block; }
-  .map-panel { height: 47dvh; min-height: 280px; }
+  .map-panel { height: 47vh;
+    height: 47dvh; min-height: 280px; }
   .detail {
     top: 10px;
     left: 10px;
@@ -1529,7 +1538,7 @@ body.page-open { overflow: hidden; }
   .phase-legend { gap: 7px; font-size: 8px; }
   .chart-head { flex-basis: 26px; }
   .playbar { gap: 8px; }
-  .trips-page { inset: 0; }
+  .trips-page { top: 0; right: 0; bottom: 0; left: 0; }
   .tp-head { padding: 13px 14px 12px; gap: 10px; }
   .tp-eyebrow { font-size: 10px; }
   .tp-title h2 { font-size: 26px; }
