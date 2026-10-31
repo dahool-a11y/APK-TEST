@@ -1,0 +1,309 @@
+/* Fahrtprofil – Layout für Fahrzeug-Displays (breite Android-Radios)
+ *
+ * Wird nach styles.css geladen und greift nur im Querformat ab 700 px Breite.
+ * Ziele: Schrift mindestens 12–13 px (Fließtext 14–17 px), Knöpfe mindestens 48 px,
+ * nichts ragt aus dem Bild. Zwei Anordnungen:
+ *
+ *  - Standard (z. B. 1024×600, 1280×720): Karte + Diagramm links, Kennzahlen rechts.
+ *  - Flach/breit (z. B. 1280×480, 1920×720, 800×480): Karte links, rechts oben die
+ *    Kennzahlen, darunter das Diagramm mit Wiedergabeleiste.
+ *
+ * Der Wert --cf skaliert die Schrift im Diagramm (js/app.js liest ihn aus).
+ */
+
+:root { --cf: 1; }
+
+@media (min-width: 700px) and (orientation: landscape) {
+  :root { --cf: 1.45; }
+
+  body { font-size: 15px; }
+
+  /* ---------- Kopfzeile ---------- */
+
+  .topbar { height: 60px; flex: 0 0 60px; gap: 16px; padding: 0 14px; }
+  .brand { gap: 10px; }
+  .brand-mark { width: 42px; height: 42px; border-radius: 12px; }
+  .brand-mark svg { width: 24px; height: 24px; }
+  .brand-text h1 { font-size: 19px; }
+  .brand-text p { font-size: 12px; letter-spacing: 0.08em; }
+  .trip { padding-left: 16px; gap: 1px; }
+  .trip-name { font-size: 17px; }
+  .trip-date { display: block; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .header-actions { gap: 8px; }
+
+  .btn { height: 48px; padding: 0 16px; font-size: 15px; gap: 8px; border-radius: 12px; }
+  .btn svg { width: 22px; height: 22px; }
+  .btn.icon { width: 48px; padding: 0; }
+  .btn .btn-text, .btn #recordLabel { display: inline; }
+  .btn .count { min-width: 22px; height: 22px; font-size: 12.5px; border-radius: 11px; }
+
+  /* ---------- Karte: Overlays ---------- */
+
+  .map-panel { min-height: 0; }
+
+  .detail { top: 12px; left: 12px; width: 270px; padding: 12px 14px 11px; }
+  .phase { font-size: 12.5px; }
+  .phase::before { width: 8px; height: 8px; }
+  .detail-close { width: 36px; height: 36px; font-size: 24px; }
+  .detail-value { margin: 2px 0 8px; }
+  .detail-value strong { font-size: 42px; }
+  .detail-value span { font-size: 14px; }
+  .detail-grid { gap: 6px 12px; padding-top: 9px; }
+  .detail-grid span { font-size: 12px; letter-spacing: 0.06em; }
+  .detail-grid b { font-size: 16px; }
+  .detail-hint { margin-top: 7px; font-size: 12.5px; }
+
+  .legend { left: 12px; bottom: 36px; width: 270px; padding: 10px 14px 11px; }
+  .legend-head { font-size: 13px; margin-bottom: 7px; }
+  .legend-unit { font-size: 12px; }
+  .legend-bar { height: 9px; border-radius: 5px; }
+  .legend-labels { font-size: 13px; margin-top: 5px; }
+  .legend-note { font-size: 12.5px; margin-top: 7px; padding-top: 7px; }
+
+  .map-hint {
+    top: 12px;
+    bottom: auto;
+    padding: 8px 16px;
+    font-size: 14px;
+    border-radius: 24px;
+  }
+
+  .recorder { right: 12px; bottom: 36px; width: 310px; padding: 12px 14px 12px; }
+  .rec-head { gap: 8px; padding-bottom: 9px; }
+  .rec-dot { width: 10px; height: 10px; }
+  .rec-state { font-size: 13px; letter-spacing: 0.06em; }
+  .rec-clock { font-size: 17px; font-weight: 600; }
+  .rec-grid { gap: 6px 14px; padding: 9px 0 10px; }
+  .rec-grid span { font-size: 12px; letter-spacing: 0.06em; }
+  .rec-grid b { font-size: 18px; }
+  .rec-actions { gap: 8px; }
+  .rec-actions .btn { height: 48px; padding: 0 10px; font-size: 15px; }
+  .rec-note { font-size: 12.5px; margin-top: 7px; }
+
+  .leaflet-control-zoom { margin-top: 12px !important; margin-right: 12px !important; border-radius: 12px !important; }
+  .leaflet-control-zoom a {
+    width: 48px !important;
+    height: 48px !important;
+    line-height: 48px !important;
+    font-size: 24px !important;
+  }
+  .leaflet-control-attribution { font-size: 12px !important; padding: 3px 8px !important; }
+
+  .place-label.city { font-size: 19px; }
+  .place-label.town { font-size: 15.5px; }
+  .place-label.village { font-size: 13.5px; }
+
+  .car-marker { width: 34px; height: 34px; }
+  .car-marker svg { width: 18px; height: 18px; }
+
+  /* ---------- Diagramm + Wiedergabeleiste ---------- */
+
+  .chart-panel { padding: 8px 14px 8px; }
+  .chart-head { flex: 0 0 36px; gap: 12px; }
+  .chart-title h2 { font-size: 14px; letter-spacing: 0.08em; }
+  .chart-title p { font-size: 13px; }
+  .phase-legend { gap: 14px; font-size: 13px; }
+  .phase-legend i { width: 10px; height: 10px; }
+  .chart-tip { padding: 8px 12px; border-radius: 10px; }
+  .chart-tip .tip-main { font-size: 19px; }
+  .chart-tip .tip-main span { font-size: 12px; }
+  .chart-tip .tip-sub { font-size: 12.5px; }
+
+  .playbar { flex: 0 0 56px; gap: 12px; padding-top: 4px; }
+  .play { width: 48px; height: 48px; flex: 0 0 48px; }
+  .play svg { width: 23px; height: 23px; }
+  .time { font-size: 15px; min-width: 44px; }
+  #scrub { height: 40px; }
+  #scrub::-webkit-slider-runnable-track { height: 8px; border-radius: 4px; }
+  #scrub::-webkit-slider-thumb { width: 28px; height: 28px; margin-top: -10px; box-shadow: 0 0 0 4px rgba(255, 209, 102, 0.28), 0 1px 4px rgba(0, 0, 0, 0.5); }
+  .follow { font-size: 15px; gap: 8px; height: 48px; padding: 0 4px; }
+  .follow input { width: 24px; height: 24px; }
+
+  /* Platz sparen und Überlappungen vermeiden */
+  #scrub { min-width: 0; }
+  .detail-hint, .legend-note, .rec-note { display: none; }
+  #detailCard:not([hidden]) ~ #legend { display: none; }
+  body.recording .legend { display: none; }
+  .recorder { right: auto; left: 12px; }
+
+  .toast { font-size: 16px; padding: 12px 18px; max-width: min(560px, calc(100vw - 32px)); bottom: 28px; }
+
+  /* ---------- Fahrten-Seite ---------- */
+
+  .tp-eyebrow { font-size: 13px; }
+  .tp-title h2 { font-size: 32px; }
+  .tp-title p { font-size: 15px; }
+  .tp-close { height: 52px; font-size: 16px; padding: 0 20px 0 14px; }
+  .kpi-label { font-size: 13px; }
+  .kpi-sub { font-size: 14px; }
+  .trip-row-name { font-size: 19px; }
+  .trip-row-sub { font-size: 14.5px; }
+  .trip-chip { font-size: 12px; }
+  .trip-row-km { font-size: 24px; }
+  .trip-row-cons { font-size: 16px; }
+  .trip-del { width: 56px; height: 56px; }
+  .trips-empty span { font-size: 15px; }
+  .tp-foot { font-size: 14px; }
+  .tp-hint { font-size: 14px; }
+  .tp-listhead h3 { font-size: 19px; }
+}
+
+/* Unter 1200 px: Nebenknöpfe nur mit Symbol, damit die Kopfzeile passt */
+@media (min-width: 700px) and (max-width: 1199px) and (orientation: landscape) {
+  #btnShuffle .btn-text,
+  .btn[for="fileInput"] .btn-text { display: none; }
+  .btn.ghost { padding: 0 13px; }
+  .brand-text p { display: none; }
+  .map-hint { display: none; }
+}
+
+/* ============================================================
+   Standard-Anordnung (nicht flach): z. B. 1024×600, 1280×720
+   ============================================================ */
+
+@media (min-width: 901px) and (orientation: landscape) and (min-height: 541px) and (max-aspect-ratio: 19/10) {
+  .rail { flex: 0 0 290px; width: 290px; gap: 10px; padding: 12px 14px 14px; }
+  .rail-eyebrow { font-size: 13px; }
+  .rail-kpis { gap: 8px; }
+  .rstat { padding: 8px 12px 9px; gap: 2px; border-radius: 12px; }
+  .rstat-label { font-size: 12.5px; letter-spacing: 0.03em; }
+  .rstat-value { font-size: 28px; gap: 0; }
+  .rstat-value small { font-size: 13px; letter-spacing: 0.03em; }
+  .rstat-hero .rstat-value { font-size: 40px; }
+  .rstat-sub { font-size: 13.5px; }
+  .rail-foot { gap: 8px; padding-top: 10px; }
+  .rail-archive { font-size: 14px; }
+  .source { font-size: 12px; padding: 6px 10px; }
+  .source::before { width: 7px; height: 7px; margin-top: 3px; }
+  .rail-action { height: 54px; font-size: 17px; border-radius: 12px; }
+  .rail-action svg { width: 22px; height: 22px; }
+  .rail-count { min-width: 28px; height: 26px; font-size: 14px; border-radius: 13px; }
+
+  .chart-panel { flex: 0 0 258px; height: 258px; }
+  .chart-title p { display: none; }
+}
+
+@media (min-width: 901px) and (orientation: landscape) and (min-height: 700px) and (max-aspect-ratio: 19/10) {
+  .chart-panel { flex: 0 0 320px; height: 320px; }
+  .rstat-value { font-size: 32px; }
+  .rstat-hero .rstat-value { font-size: 46px; }
+}
+
+/* ============================================================
+   Flache/breite Anordnung: z. B. 1280×480, 1920×720, 800×480
+   Karte links; rechts oben die Kennzahlen, darunter das Diagramm
+   ============================================================ */
+
+@media (min-width: 700px) and (orientation: landscape) and (min-aspect-ratio: 19/10),
+       (min-width: 700px) and (orientation: landscape) and (max-height: 540px) {
+  .workspace {
+    display: grid;
+    grid-template-columns: minmax(0, 1.12fr) minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+    grid-template-areas:
+      "map rail"
+      "map chart";
+  }
+
+  .workspace > main { display: contents; }
+
+  .map-panel { grid-area: map; min-height: 0; }
+
+  .rail {
+    grid-area: rail;
+    flex: none;
+    width: auto;
+    flex-direction: column;
+    gap: 0;
+    padding: 10px 12px 10px;
+    border-left: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+    overflow: visible;
+  }
+
+  .rail-head, .rail-foot { display: none; }
+
+  .rail-kpis {
+    display: grid;
+    grid-template-columns: 1.25fr 1fr 1fr;
+    grid-template-rows: auto auto;
+    gap: 8px;
+    overflow: visible;
+  }
+
+  .rstat { flex: none; padding: 6px 12px 7px; gap: 1px; border-radius: 12px; }
+  .rstat-hero { grid-column: 1; grid-row: 1 / span 2; justify-content: center; }
+  .rstat-label { font-size: 12.5px; letter-spacing: 0.03em; }
+  .rstat-value { flex-direction: row; align-items: baseline; gap: 6px; font-size: 28px; }
+  .rstat-value small { font-size: 13px; letter-spacing: 0.02em; }
+  .rstat-hero .rstat-value { font-size: 44px; }
+  .rstat-sub { font-size: 13.5px; }
+
+  .chart-panel {
+    grid-area: chart;
+    flex: none;
+    height: auto;
+    min-height: 0;
+    border-left: 1px solid var(--border);
+    border-top: 0;
+    padding: 6px 12px 6px;
+  }
+
+  .chart-head { flex: 0 0 32px; }
+  .chart-title p { display: none; }
+  .playbar { flex: 0 0 52px; }
+
+  .map-hint { display: none; }
+
+  /* kleine Karte: Detailkarte kompakter */
+  .detail { width: 250px; }
+  .detail-hint { display: none; }
+  .legend { width: 250px; }
+  .legend-note { display: none; }
+  .recorder { width: 290px; }
+
+  /* Fahrten-Seite: sechs Kacheln in einer Reihe */
+  .tp-kpis { grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; }
+  .kpi { padding: 8px 12px 9px; }
+  .kpi-value { font-size: 26px; white-space: nowrap; }
+  .kpi-label { font-size: 12.5px; letter-spacing: 0.04em; }
+  .kpi-sub { font-size: 13px; }
+  .tp-head { padding-top: 8px; padding-bottom: 8px; }
+}
+
+/* Sehr schmal und flach (800×480): Kennzahlen in drei Spalten, Hauptwert ohne Zusatzzeile */
+@media (min-width: 700px) and (max-width: 1000px) and (orientation: landscape) and (max-height: 540px) {
+  .workspace { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .rail-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); grid-template-rows: auto auto; }
+  .rstat-hero { grid-column: auto; grid-row: auto; }
+  .rstat-sub { display: none; }
+  .rstat-label { font-size: 12px; letter-spacing: 0; }
+  .rstat-value, .rstat-hero .rstat-value { font-size: 26px; }
+  .rstat-value small { font-size: 12px; }
+  .phase-legend { display: none; }
+  .detail, .legend { width: 230px; }
+  .recorder { width: 310px; }
+  .tp-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+/* Hoch aufgelöste, breite Displays (1920×720): größere Kennzahlen */
+@media (min-width: 1500px) and (orientation: landscape) and (min-aspect-ratio: 19/10) {
+  .rstat-value { font-size: 34px; }
+  .rstat-hero .rstat-value { font-size: 54px; }
+  .rstat-label { font-size: 14px; }
+  .rstat-sub { font-size: 15px; }
+  .rstat { padding: 8px 14px 9px; }
+}
+
+/* Sehr flache Displays (z. B. Handy quer, unter 440 px Höhe): Platz für das Diagramm schaffen */
+@media (min-width: 700px) and (orientation: landscape) and (max-height: 440px) {
+  .topbar { height: 52px; flex: 0 0 52px; }
+  .brand-mark { width: 36px; height: 36px; }
+  .btn { height: 44px; }
+  .btn.icon { width: 44px; }
+  .chart-head { display: none; }
+  .playbar { flex: 0 0 48px; }
+  .play { width: 44px; height: 44px; flex: 0 0 44px; }
+  #scrub { height: 36px; }
+  .follow { height: 44px; }
+}

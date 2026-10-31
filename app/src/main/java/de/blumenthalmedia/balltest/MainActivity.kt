@@ -101,13 +101,17 @@ class MainActivity : ComponentActivity() {
         )
 
         banner = UpdateBanner(this, lifecycleScope)
-        val margin = (12 * resources.displayMetrics.density).toInt()
+        // Banner: auf breiten Displays links unten und höchstens 520 dp breit, damit er
+        // weder die Wiedergabeleiste noch die Zoom-Knöpfe verdeckt
+        val density = resources.displayMetrics.density
+        val margin = (12 * density).toInt()
+        val bannerWidth = minOf(resources.displayMetrics.widthPixels - 2 * margin, (520 * density).toInt())
         root.addView(
             banner.view,
             FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
+                bannerWidth,
                 ViewGroup.LayoutParams.WRAP_CONTENT,
-                Gravity.BOTTOM
+                Gravity.BOTTOM or Gravity.START
             ).apply { setMargins(margin, margin, margin, margin) }
         )
 
@@ -128,6 +132,8 @@ class MainActivity : ComponentActivity() {
             settings.allowFileAccess = false
             settings.allowContentAccess = false
             settings.setSupportZoom(false)
+            // System-Schriftgröße ignorieren: das Layout ist selbst für große Displays ausgelegt
+            settings.textZoom = 100
 
             addJavascriptInterface(NativeBridge(this@MainActivity), "AndroidBridge")
 

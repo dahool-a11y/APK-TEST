@@ -1,21 +1,22 @@
 /* Fahrtprofil – Offline-Cache (PWA) */
-const CACHE = 'fahrtprofil-v26';
+const CACHE = 'fahrtprofil-v27';
 const ASSETS = [
   './',
   './index.html',
-  './styles.css?v=26',
+  './styles.css?v=27',
+  './car.css?v=27',
   './manifest.webmanifest',
   './vendor/leaflet.js',
   './vendor/leaflet.css',
   './vendor/images/layers.png',
   './vendor/images/layers-2x.png',
-  './data/basemap.js?v=26',
-  './js/basemap.js?v=26',
-  './js/native-bridge.js?v=26',
-  './js/simulate.js?v=26',
-  './js/data.js?v=26',
-  './js/store.js?v=26',
-  './js/app.js?v=26',
+  './data/basemap.js?v=27',
+  './js/basemap.js?v=27',
+  './js/native-bridge.js?v=27',
+  './js/simulate.js?v=27',
+  './js/data.js?v=27',
+  './js/store.js?v=27',
+  './js/app.js?v=27',
   './icons/icon-192.png',
   './icons/icon-512.png',
   './icons/icon-512-maskable.png'

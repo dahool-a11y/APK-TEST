@@ -79,6 +79,21 @@ Asset `www` in die APK kopiert (ohne `tools/` und README).
   Ball-Test-App ersetzt.
 - Jeder Push auf `main` baut per GitHub Actions eine neue APK.
 
+### Fahrzeug-Layout (`car.css`)
+
+Im Querformat ab 700 px Breite greift `car.css` (nach `styles.css` geladen): Schrift
+mindestens 12–13 px (Werte 16–54 px), Knöpfe mindestens 48 px, große Zoom-Knöpfe,
+Diagrammschrift skaliert über `--cf`. Zwei Anordnungen:
+
+- **Standard** (z. B. 1024×600, 1280×720): Karte und Diagramm links, Kennzahlen rechts.
+- **Flach/breit** (z. B. 1280×480, 1920×720, 800×480): Karte links, rechts oben die
+  Kennzahlen, darunter Diagramm und Wiedergabeleiste.
+
+Getestet mit Chromium in 844×390, 800×480, 960×540, 1024×600, 1280×480, 1280×720 und
+1920×720 (Hauptansicht, ausgewählter Punkt, Aufzeichnung, Fahrtenliste): keine
+Überläufe, keine überlappenden Karten, alle Knöpfe ≥ 44 px. Echte Radios können
+andere Pixeldichten melden; falls etwas nicht passt, die gemeldete Auflösung nennen.
+
 Grenzen: Wird die App aus der Übersicht weggewischt, endet auch die Aufzeichnung.
 Punkte liegen nur im Arbeitsspeicher, bis die Fahrt beendet und gespeichert wird.
 

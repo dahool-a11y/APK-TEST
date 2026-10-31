@@ -54,7 +54,7 @@
   let carMarker = null;
   let layerPts = null;
 
-  let chart = { w: 0, h: 0, dpr: 1, padL: 44, padR: 16, padT: 24, padB: 24, yMax: 20, xMax: 1 };
+  let chart = { w: 0, h: 0, dpr: 1, cf: 1, padL: 44, padR: 16, padT: 24, padB: 24, yMax: 20, xMax: 1 };
   let staticCanvas = null;
   let playRAF = 0;
   let lastFrame = 0;
@@ -339,6 +339,13 @@
     const rect = chartWrap.getBoundingClientRect();
     if (rect.width < 20 || rect.height < 20) return;
     const dpr = Math.min(2.5, window.devicePixelRatio || 1);
+    // Schriftskalierung für Fahrzeug-Displays (siehe car.css, Variable --cf)
+    const cf = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--cf')) || 1;
+    chart.cf = cf;
+    chart.padL = Math.round(44 * cf);
+    chart.padR = Math.round(16 * cf);
+    chart.padT = Math.round(24 * (0.7 + 0.3 * cf));
+    chart.padB = Math.round(24 * cf);
     chart.w = rect.width;
     chart.h = rect.height;
     chart.dpr = dpr;
@@ -400,9 +407,9 @@
             ctx.fillStyle = info.band;
             ctx.fillRect(x1, chart.padT, x2 - x1, g.plotH);
           }
-          if (x2 - x1 > 52) {
+          if (x2 - x1 > 52 * chart.cf) {
             ctx.fillStyle = 'rgba(255,255,255,0.24)';
-            ctx.font = '600 8px Inter, "Segoe UI", sans-serif';
+            ctx.font = '600 ' + Math.round(8 * chart.cf) + 'px Inter, "Segoe UI", sans-serif';
             ctx.textAlign = 'left';
             ctx.textBaseline = 'top';
             ctx.fillText(pts[start].phase.toUpperCase(), x1 + 6, chart.padT + 6);
@@ -413,7 +420,7 @@
     }
 
     // Gitter + Y-Achse
-    ctx.font = '9px Inter, "Segoe UI", sans-serif';
+    ctx.font = Math.round(9 * chart.cf) + 'px Inter, "Segoe UI", sans-serif';
     ctx.textAlign = 'right';
     ctx.textBaseline = 'middle';
     for (let v = 0; v <= chart.yMax + 0.001; v += 5) {
@@ -1230,9 +1237,13 @@
     if (fit) {
       const bounds = L.latLngBounds(trip.points.map((p) => [p.lat, p.lng]));
       const narrow = map.getSize().x < 620;
-      const pad = narrow
-        ? { paddingTopLeft: [28, 44], paddingBottomRight: [28, 92] }
-        : { padding: [42, 42] };
+      // Fahrzeug-Layout (car.css): rechts Platz für die großen Zoom-Knöpfe lassen
+      const car = (parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--cf')) || 1) > 1;
+      const pad = car
+        ? { paddingTopLeft: [24, 24], paddingBottomRight: [88, 24] }
+        : narrow
+          ? { paddingTopLeft: [28, 44], paddingBottomRight: [28, 92] }
+          : { padding: [42, 42] };
       map.fitBounds(bounds, Object.assign(pad, { maxZoom: 13.5, animate: false }));
       layerPts = null;
     }
