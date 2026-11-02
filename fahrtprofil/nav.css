@@ -208,3 +208,19 @@ body { padding-left: var(--navw); }
   .service-page .tp-foot { display: none; }
 }
 
+
+/* ---------- Entschlackt: Dinge, die sich von selbst erklären ---------- */
+
+.legend,
+.map-hint,
+.detail-hint,
+.chart-head,
+.rail-head,
+.rail-archive,
+.tp-head,
+.tp-foot { display: none !important; }
+
+/* Kleine Displays: Kennzahl-Beschriftungen ohne Abschneiden */
+@media (max-width: 900px) {
+  .rstat-label { letter-spacing: 0.02em; font-size: 11px; }
+}
