@@ -107,8 +107,7 @@
       }
       return {
         state, frac, value, unit,
-        meta: (typeof d.lastKm === 'number' ? 'seit ' + fmtDate(d.lastDate) : 'am ' + fmtDate(d.lastDate)) +
-          ' · alle ' + nf.format(d.intervalKm) + ' km'
+        meta: 'seit ' + fmtDate(d.lastDate) + ' · ' + nf.format(d.intervalKm) + ' km'
       };
     }
 
