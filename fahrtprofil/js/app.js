@@ -4,11 +4,11 @@
   const CONS_MAX = 16;
   const SCALE = [
     [0.00, [35, 168, 107]],
-    [0.18, [61, 220, 132]],
-    [0.38, [185, 227, 75]],
-    [0.55, [255, 209, 102]],
-    [0.72, [255, 157, 61]],
-    [0.88, [255, 92, 92]],
+    [0.16, [61, 220, 132]],
+    [0.32, [185, 227, 75]],
+    [0.46, [255, 209, 102]],
+    [0.60, [255, 157, 61]],
+    [0.76, [255, 92, 92]],
     [1.00, [198, 47, 61]]
   ];
   const PHASE = {
@@ -456,9 +456,13 @@
 
     // Fläche unter der Kurve
     const baseY = yForCons(0, g);
+    // Fläche unter der Kurve: Farbverlauf nach Verbrauchshöhe, damit Spitzen auffallen
     const grad = ctx.createLinearGradient(0, chart.padT, 0, baseY);
-    grad.addColorStop(0, 'rgba(159,182,204,0.16)');
-    grad.addColorStop(1, 'rgba(159,182,204,0.01)');
+    const span = Math.max(1, baseY - chart.padT);
+    for (let c = CONS_MAX; c >= 0; c -= 2) {
+      const off = Math.min(1, Math.max(0, (yForCons(c, g) - chart.padT) / span));
+      grad.addColorStop(off, colorFor(c).replace('rgb(', 'rgba(').replace(')', ',' + (0.10 + 0.30 * (c / CONS_MAX)).toFixed(2) + ')'));
+    }
     ctx.beginPath();
     for (let i = 0; i < pts.length; i++) {
       const x = xForDist(pts[i].dist / 1000, g);
@@ -473,7 +477,7 @@
     ctx.fill();
 
     // Verbrauchskurve, segmentweise eingefärbt
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 2 * Math.max(1, Math.min(1.6, chart.cf || 1));
     ctx.lineJoin = 'round';
     ctx.lineCap = 'round';
     for (let i = 1; i < pts.length; i++) {
