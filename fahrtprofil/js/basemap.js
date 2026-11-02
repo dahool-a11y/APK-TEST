@@ -45,6 +45,8 @@
   const water = prepare(DATA.water || []);
   const rivers = prepare(DATA.rivers || []);
   const rails = prepare(DATA.rails || []);
+  const land = prepare(DATA.land || []);
+  const borders = prepare(DATA.borders || []);
   const roads = prepare(DATA.roads || [], true).sort(
     (a, b) => ROAD_ORDER.indexOf(a.c) - ROAD_ORDER.indexOf(b.c)
   );
@@ -88,11 +90,45 @@
         return [p.x - ox, p.y - oy];
       };
 
-      ctx.fillStyle = '#0a1016';
+      ctx.fillStyle = '#050d15';
       ctx.fillRect(0, 0, size.x, size.y);
 
       const f = Math.max(0.6, Math.min(2.2, Math.pow(2, (z - 11) * 0.55)));
       const showMinor = z >= 12.5;
+
+      // Landflächen über dem Meer
+      if (land.length) {
+        ctx.fillStyle = '#0d151e';
+        for (let i = 0; i < land.length; i++) {
+          const ft = land[i];
+          if (!intersects(ft.b, minLng, minLat, maxLng, maxLat)) continue;
+          ctx.beginPath();
+          let moved = false;
+          for (let j = 0; j < ft.g.length; j++) {
+            const p = proj(ft.g[j][0], ft.g[j][1]);
+            if (!moved) { ctx.moveTo(p[0], p[1]); moved = true; }
+            else ctx.lineTo(p[0], p[1]);
+          }
+          ctx.closePath();
+          ctx.fill();
+        }
+
+        // Küsten und Staatsgrenzen als feine Linie
+        ctx.strokeStyle = 'rgba(126, 162, 194, 0.16)';
+        ctx.lineWidth = 1;
+        ctx.lineJoin = 'round';
+        for (let i = 0; i < borders.length; i++) {
+          const ft = borders[i];
+          if (!intersects(ft.b, minLng, minLat, maxLng, maxLat)) continue;
+          ctx.beginPath();
+          for (let j = 0; j < ft.g.length; j++) {
+            const p = proj(ft.g[j][0], ft.g[j][1]);
+            if (j === 0) ctx.moveTo(p[0], p[1]);
+            else ctx.lineTo(p[0], p[1]);
+          }
+          ctx.stroke();
+        }
+      }
 
       // Grünflächen
       ctx.fillStyle = 'rgba(47,88,67,0.17)';
@@ -238,8 +274,8 @@
     function update() {
       const z = map.getZoom();
       const allowed = {
-        city: z >= 8.5,
-        town: z >= 10.5,
+        city: z >= 6.5,
+        town: z >= 8.5,
         village: z >= 12.5
       };
       const size = map.getSize();

@@ -12,15 +12,16 @@ python -m http.server 5173 --bind 127.0.0.1
 ```
 
 Danach <http://127.0.0.1:5173/> öffnen. Die App startet mit einer simulierten
-Fahrt München – Starnberg – Herrsching, damit Karte, Kurve und Auswahl sofort
-sichtbar sind.
+Fahrt Riga – Sigulda – Cēsis, damit Karte, Kurve und Auswahl sofort sichtbar
+sind.
 
 ## Was die App kann
 
-- **Offline-Karte**: gebündelte OSM-Vektordaten (`data/basemap.js`, ~1,9 MB) werden
-  von einem eigenen Leaflet-`GridLayer` in Canvas gezeichnet. Straßen, Wasser,
-  Grünflächen, Bahnstrecken und Ortslabels sind enthalten; es gibt keine
-  Netzwerkanfragen an Karten-Server.
+- **Offline-Karte**: gebündelte OSM-Vektordaten für Lettland
+  (`data/basemap.js`, ~2,6 MB) werden von einem eigenen Leaflet-`GridLayer` in
+  Canvas gezeichnet. Meer, Landflächen, Staatsgrenzen, Straßen, Flüsse, Seen,
+  Bahnstrecken und Ortslabels sind enthalten; es gibt keine Netzwerkanfragen an
+  Karten-Server.
 - **Route nach Verbrauch eingefärbt**: Farbskala 0–16 L/100 km
   (grün → gelb → rot), Segmente oberhalb von 16 bleiben rot.
 - **Verbrauchskurve**: Canvas-Chart mit Phasenbändern (Stadt / Landstraße /
@@ -143,7 +144,7 @@ für die betroffenen Punkte.
   "name": "Fahrt zur Arbeit",
   "date": "2026-10-29T07:12:00Z",
   "points": [
-    { "lat": 48.1374, "lng": 11.5755, "ele": 519, "speed": 32, "cons": 6.4, "time": 1761721920 }
+    { "lat": 56.9517, "lng": 24.1133, "ele": 10, "speed": 32, "cons": 6.4, "time": 1761721920 }
   ]
 }
 ```
@@ -158,7 +159,7 @@ Spaltennamen sind tolerant (Groß-/Kleinschreibung, Umlaute):
 
 ```csv
 lat;lng;ele;speed;cons;time
-48.1374;11.5755;519;32;6.4;2026-10-29T07:12:00Z
+56.9517;24.1133;10;32;6.4;2026-10-29T07:12:00Z
 ```
 
 Erkannte Aliase sind u. a. `lat|latitude|breite`, `lng|lon|longitude|laenge`,
@@ -199,35 +200,39 @@ fahrtprofil/
   sw.js                   Offline-Cache
   manifest.webmanifest    PWA-Manifest
   icons/                  PWA-Icons
-  tools/build_basemap.py  erzeugt data/basemap.js aus Overpass-Daten
+  tools/build_basemap.py  erzeugt data/basemap.js aus Geofabrik-PBF + Natural Earth
   tools/make_icons.py     erzeugt die PWA-Icons
 ```
 
 ## Karte neu bauen
 
-`tools/build_basemap.py` lädt die OSM-Daten für den Korridor München–Ammersee
-per Overpass, vereinfacht die Geometrien und schreibt `data/basemap.js`.
-Nebenstraßen (`residential`, `unclassified`, `living_street`) werden mitgeladen
-und ab Zoomstufe 12,5 gezeichnet.
+`tools/build_basemap.py` liest einen Geofabrik-Auszug (`.osm.pbf`), vereinfacht
+die Geometrien und schreibt `data/basemap.js`. Meer, Landflächen und
+Staatsgrenzen kommen aus Natural Earth 1:10m (gemeinfrei), alles andere aus
+OpenStreetMap. Enthalten sind `motorway`, `trunk`, `primary` und `secondary`,
+Bahnstrecken, Flüsse, Seen ab 0,25 km² sowie Orte vom Typ `city` und `town`.
 
 ```powershell
-python tools\build_basemap.py
+pip install osmium pyshp
+python tools\build_basemap.py `
+  --pbf latvia-latest.osm.pbf `
+  --countries ne_10m_admin_0_countries.shp
 ```
 
-Der Rohdownload wird unter `tools/cache/osm_raw.json` zwischengespeichert.
-Überlastete Overpass-Server antworten gelegentlich mit HTTP 502 – dann später
-erneut versuchen.
+Der Lauf dauert einige Minuten, weil der PBF zweimal gelesen wird (erst die
+Wasser-Relationen, dann alle Wege mit Koordinaten). Mit `--out` lässt sich ein
+anderer Zielpfad angeben; ohne `--countries` entfallen Land und Grenzen.
 
 ## Service Worker / Updates
 
-`sw.js` cached die App-Shell mit Cache-Namen `fahrtprofil-v25`. Navigationen
+`sw.js` cached die App-Shell mit Cache-Namen `fahrtprofil-v33`. Navigationen
 werden **network-first** geladen (offline aus dem Cache), statische Assets aus
 dem Cache mit Hintergrund-Aktualisierung. Der Precache nutzt `cache: 'reload'`
 und umgeht damit den HTTP-Cache, der sonst eine alte `index.html` liefern
 könnte. Nach Änderungen an HTML, CSS, JS oder Kartendaten **beides gemeinsam**
 erhöhen:
 
-- `CACHE` in `sw.js` (z. B. `fahrtprofil-v26`)
+- `CACHE` in `sw.js` (z. B. `fahrtprofil-v34`)
 - `?v=` an Stylesheet und Skripten in `index.html` sowie in der `ASSETS`-Liste
   von `sw.js`
 
@@ -260,9 +265,9 @@ Konsole exponiert (Zoom, Trip-Punkte, Auswahlzustand, Fahrtenarchiv). Vor einer
 - Der Anwendungscode in diesem Ordner ist ein privates Projekt ohne festgelegte
   Lizenz.
 
-## Navigation und Service (Version 28)
+## Navigation und Service (Version 33)
 
 - Drei Reiter oben (und im Kopf jeder Seite): **Tracking** (Karte und Aufzeichnung), **Fahrtenbuch** (gespeicherte Fahrten), **Service**. Die Zurück-Taste führt von Fahrtenbuch und Service zum Tracking.
-- **Service** (`js/service.js`): Tachostand einmal eintragen, danach zählt die App gespeicherte Fahrten dazu. Vier Fristen: Ölwechsel (km und Monate), CSDD-Termin, Ölstand-Kontrolle, Wischwasser-Kontrolle. Ampel grün, gelb (bald fällig), rot (fällig); der Zähler am Reiter zeigt, wie viele Fristen anstehen.
+- **Service** (`js/service.js`): Tachostand einmal eintragen, danach zählt die App gespeicherte Fahrten dazu. Vier Fristen: Ölwechsel (km und Monate), CSDD-Prüfung, Ölstand-Kontrolle, Wischwasser-Kontrolle. Jede Zeile zeigt Symbol, großen Restwert mit Einheit und eine leise Detailzeile; kleine Icon-Buttons daneben erledigen „abgehakt“ und „bearbeiten“. Ampel grün, gelb (bald fällig), rot (fällig) über Statuspunkt, linke Kante und Fortschrittsbalken; der Zähler am Reiter zeigt, wie viele Fristen anstehen.
 - Alle Service-Daten liegen im localStorage unter `fahrtprofil.service.v1`, nur lokal.
 - Navigation: `js/nav.js`, Stil: `nav.css`.

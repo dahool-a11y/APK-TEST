@@ -67,7 +67,7 @@
   const ITEMS = [
     { key: 'oil', title: 'Ölwechsel', kind: 'kmtime', done: 'Ölwechsel erledigt',
       defaults: { intervalKm: 15000, intervalMonths: 12 } },
-    { key: 'csdd', title: 'CSDD · Hauptuntersuchung', kind: 'date', done: 'Prüfung bestanden',
+    { key: 'csdd', title: 'CSDD-Prüfung', kind: 'date', done: 'Prüfung bestanden',
       defaults: { intervalMonths: 24 } },
     { key: 'oilLevel', title: 'Ölstand', kind: 'check', done: 'Ölstand geprüft',
       defaults: { intervalDays: 30 } },
@@ -75,55 +75,86 @@
       defaults: { intervalDays: 30 } }
   ];
 
-  /** Ergebnis: { state: unset|ok|soon|due, headline, detail, frac } */
+  /** Ergebnis: { state: unset|ok|soon|due, frac, value, unit, meta }
+   *  value/unit ist die große Zahl neben dem Symbol, meta die leise Zeile darunter. */
   function status(it) {
     const d = data[it.key];
-    if (!d) return { state: 'unset', headline: 'Noch nicht eingerichtet', detail: '', frac: 0 };
+    if (!d) return { state: 'unset', frac: 0, value: '–', unit: '', meta: '' };
 
     if (it.kind === 'kmtime') {
       const byTime = daysFrom(d.lastDate);
       const totalDays = Math.max(1, Math.round(d.intervalMonths * 30.44));
       let frac = byTime == null ? 0 : byTime / totalDays;
-      let left = [];
-      if (byTime != null) left.push(Math.max(0, totalDays - byTime) > 0 ? 'noch ' + dayText(totalDays - byTime) : 'Zeit überschritten');
+      let leftDays = byTime == null ? null : totalDays - byTime;
+      let leftKm = null;
+
       if (kmNow != null && typeof d.lastKm === 'number' && d.intervalKm > 0) {
         const used = kmNow - d.lastKm;
         frac = Math.max(frac, used / d.intervalKm);
-        left.unshift(used < d.intervalKm ? 'noch ' + nf.format(d.intervalKm - used) + ' km' : nf.format(used - d.intervalKm) + ' km überfällig');
+        leftKm = d.intervalKm - used;
       }
       const state = frac >= 1 ? 'due' : frac >= 0.85 ? 'soon' : 'ok';
+
+      let value, unit;
+      if (leftKm != null) {
+        value = nf.format(Math.abs(leftKm));
+        unit = leftKm < 0 ? 'km über' : 'km';
+      } else if (leftDays != null) {
+        value = nf.format(Math.abs(leftDays));
+        unit = leftDays < 0 ? 'Tage über' : 'Tage';
+      } else {
+        value = '–'; unit = '';
+      }
       return {
-        state, frac,
-        headline: left.join(' · ') || 'Kilometerstand eintragen',
-        detail: 'Letzter Wechsel ' + fmtDate(d.lastDate) + (typeof d.lastKm === 'number' ? ' bei ' + nf.format(d.lastKm) + ' km' : '') +
-          ' · alle ' + nf.format(d.intervalKm) + ' km / ' + d.intervalMonths + ' Monate'
+        state, frac, value, unit,
+        meta: (typeof d.lastKm === 'number' ? 'seit ' + fmtDate(d.lastDate) : 'am ' + fmtDate(d.lastDate)) +
+          ' · alle ' + nf.format(d.intervalKm) + ' km'
       };
     }
 
     if (it.kind === 'date') {
       const t = parse(d.due);
-      if (t == null) return { state: 'unset', headline: 'Noch nicht eingerichtet', detail: '', frac: 0 };
+      if (t == null) return { state: 'unset', frac: 0, value: '–', unit: '', meta: '' };
       const left = Math.ceil((t - Date.now()) / DAY);
       const state = left < 0 ? 'due' : left <= 60 ? 'soon' : 'ok';
       return {
         state, frac: Math.min(1, Math.max(0, 1 - left / 730)),
-        headline: left < 0 ? 'seit ' + dayText(left) + ' überfällig' : left === 0 ? 'heute fällig' : 'noch ' + dayText(left),
-        detail: 'Fällig am ' + fmtDate(d.due) + ' · Intervall ' + d.intervalMonths + ' Monate'
+        value: nf.format(Math.abs(left)), unit: left < 0 ? 'Tage über' : 'Tage',
+        meta: 'Termin ' + fmtDate(d.due)
       };
     }
 
     const ago = daysFrom(d.lastDate);
-    if (ago == null) return { state: 'unset', headline: 'Noch nicht eingerichtet', detail: '', frac: 0 };
+    if (ago == null) return { state: 'unset', frac: 0, value: '–', unit: '', meta: '' };
     const left = d.intervalDays - ago;
     const state = left <= 0 ? 'due' : left <= 7 ? 'soon' : 'ok';
     return {
       state, frac: Math.min(1, ago / d.intervalDays),
-      headline: left <= 0 ? 'Kontrolle überfällig' : 'Nächste Kontrolle in ' + dayText(left),
-      detail: 'Zuletzt ' + fmtDate(d.lastDate) + (ago === 0 ? ' (heute)' : ' (vor ' + dayText(ago) + ')') + ' · alle ' + d.intervalDays + ' Tage'
+      value: nf.format(Math.abs(left)), unit: left < 0 ? 'Tage über' : 'Tage',
+      meta: 'zuletzt ' + fmtDate(d.lastDate)
     };
   }
 
-  const STATE_LABEL = { unset: 'Einrichten', ok: 'In Ordnung', soon: 'Bald fällig', due: 'Fällig' };
+  const STATE_LABEL = { unset: 'Nicht eingerichtet', ok: 'In Ordnung', soon: 'Bald fällig', due: 'Fällig' };
+
+  /* ---------- Symbole ---------- */
+
+  const svg = (body) => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" ' +
+    'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + body + '</svg>';
+
+  const ICONS = {
+    odo: svg('<path d="M4 17a8 8 0 1 1 16 0"/><path d="M12 17l3.6-4.9"/><circle cx="12" cy="17" r="1.7" fill="currentColor" stroke="none"/>'),
+    oil: svg('<path d="M10 3h4v3.2l2 2.8V21H8V9l2-2.8z"/><path d="M8 13h8"/><path d="M10 3h4"/>'),
+    csdd: svg('<path d="M12 3l7 3v5.6c0 4.2-2.9 7.6-7 9.4-4.1-1.8-7-5.2-7-9.4V6z"/><path d="M9 11.8l2.2 2.3 4.3-4.3"/>'),
+    oilLevel: svg('<path d="M12 3.2s5.6 5.9 5.6 9.6a5.6 5.6 0 0 1-11.2 0c0-3.7 5.6-9.6 5.6-9.6z"/><path d="M9.4 14.2h5.2"/>'),
+    washer: svg('<path d="M9 8.5h4.5A2.5 2.5 0 0 1 16 11v9H7v-9a2.5 2.5 0 0 1 2-2.5z"/><path d="M9 8.5V5.5h4"/><path d="M16.5 5.5H20"/><path d="M18 3v5"/>'),
+    plus: svg('<path d="M12 5.5v13"/><path d="M5.5 12h13"/>'),
+    check: svg('<path d="M5 12.6l4.6 4.6L19 7.5"/>'),
+    pencil: svg('<path d="M4 20h4L19 9a2.1 2.1 0 0 0-3-3L5 17z"/><path d="M14.5 6.5l3 3"/>'),
+    trash: svg('<path d="M5 7h14"/><path d="M10 4h4"/><path d="M7.5 7l1 13h7l1-13"/>')
+  };
+
+  const icon = (key) => '<span class="sv-ico" aria-hidden="true">' + (ICONS[key] || '') + '</span>';
 
   function field(label, name, type, value, extra) {
     return '<label class="sv-field"><span>' + label + '</span><input name="' + name + '" type="' + type + '" value="' +
@@ -146,53 +177,73 @@
       f += field('Zuletzt geprüft am', 'lastDate', 'date', d.lastDate || todayIso());
       f += field('Erinnerung alle (Tage)', 'intervalDays', 'number', d.intervalDays || df0.intervalDays, 'inputmode="numeric" min="1"');
     }
-    return '<form class="sv-form" data-form="' + it.key + '">' + f +
-      '<div class="sv-actions"><button class="sv-btn primary" type="submit">Speichern</button>' +
+    return '<form class="sv-form" data-form="' + it.key + '">' +
+      '<div class="sv-fields">' + f + '</div>' +
+      '<div class="sv-formbar"><button class="sv-btn primary" type="submit">Speichern</button>' +
       '<button class="sv-btn" type="button" data-act="cancel">Abbrechen</button>' +
-      (data[it.key] ? '<button class="sv-btn danger" type="button" data-act="remove" data-key="' + it.key + '">Entfernen</button>' : '') +
+      (data[it.key] ? '<button class="sv-btn danger" type="button" data-act="remove" data-key="' + it.key + '">' + ICONS.trash + 'Löschen</button>' : '') +
       '</div></form>';
+  }
+
+  function actionButtons(it, set) {
+    if (editing === it.key) return '';
+    if (!set) {
+      return '<button class="sv-btn sv-ico-btn sv-setup" data-act="edit" data-key="' + it.key + '" ' +
+        'title="Einrichten" aria-label="' + it.title + ' einrichten">' + ICONS.plus + '<span>Einrichten</span></button>';
+    }
+    return '<button class="sv-btn sv-ico-btn done" data-act="done" data-key="' + it.key + '" ' +
+      'title="' + it.done + '" aria-label="' + it.done + '">' + ICONS.check + '</button>' +
+      '<button class="sv-btn sv-ico-btn" data-act="edit" data-key="' + it.key + '" ' +
+      'title="Werte ändern" aria-label="' + it.title + ' bearbeiten">' + ICONS.pencil + '</button>';
   }
 
   function cardHtml(it) {
     const s = status(it);
-    const bar = s.state === 'unset' ? '' :
-      '<div class="sv-bar"><i style="width:' + Math.round(Math.min(1, s.frac) * 100) + '%"></i></div>';
+    const set = s.state !== 'unset';
+    const bar = set ? '<div class="sv-bar"><i style="width:' + Math.round(Math.min(1, s.frac) * 100) + '%"></i></div>' : '';
     let body;
     if (editing === it.key) {
-      body = editForm(it);
+      body = '<div class="sv-row">' + icon(it.key) +
+        '<div class="sv-main"><span class="sv-name">' + it.title + '</span></div></div>' + editForm(it);
     } else {
-      const doneLabel = it.done;
-      body = '<div class="sv-headline">' + esc(s.headline) + '</div>' + bar +
-        (s.detail ? '<div class="sv-detail">' + esc(s.detail) + '</div>' : '') +
-        '<div class="sv-actions">' +
-        (s.state === 'unset'
-          ? '<button class="sv-btn primary" data-act="edit" data-key="' + it.key + '">Einrichten</button>'
-          : '<button class="sv-btn primary" data-act="done" data-key="' + it.key + '">' + doneLabel + '</button>' +
-            '<button class="sv-btn" data-act="edit" data-key="' + it.key + '">Bearbeiten</button>') +
+      body = '<div class="sv-row">' + icon(it.key) +
+        '<div class="sv-main">' +
+          '<span class="sv-name">' + it.title + '<i class="sv-dot" title="' + STATE_LABEL[s.state] + '"></i></span>' +
+          '<span class="sv-value">' + s.value + (s.unit ? '<small>' + s.unit + '</small>' : '') + '</span>' +
+          (s.meta ? '<span class="sv-meta">' + esc(s.meta) + '</span>' : '') +
+          bar +
+        '</div>' +
+        '<div class="sv-btns">' + actionButtons(it, set) + '</div>' +
         '</div>';
     }
-    return '<article class="sv-card state-' + s.state + '"><header><h3>' + it.title + '</h3>' +
-      '<span class="sv-pill">' + STATE_LABEL[s.state] + '</span></header>' + body + '</article>';
+    return '<article class="sv-card state-' + s.state + (editing === it.key ? ' editing' : '') + '">' + body + '</article>';
   }
 
   function odoHtml() {
     const o = data.odo;
     let body;
     if (editing === 'odo') {
-      body = '<form class="sv-form" data-form="odo">' +
-        field('Kilometerstand laut Tacho', 'km', 'number', o ? kmNow : '', 'inputmode="numeric" min="0" required') +
-        '<div class="sv-actions"><button class="sv-btn primary" type="submit">Speichern</button>' +
+      body = '<div class="sv-row">' + icon('odo') +
+        '<div class="sv-main"><span class="sv-name">Kilometerstand</span></div></div>' +
+        '<form class="sv-form" data-form="odo">' +
+        '<div class="sv-fields">' + field('Tachostand', 'km', 'number', o ? kmNow : '', 'inputmode="numeric" min="0" required') + '</div>' +
+        '<div class="sv-formbar"><button class="sv-btn primary" type="submit">Speichern</button>' +
         '<button class="sv-btn" type="button" data-act="cancel">Abbrechen</button></div></form>';
-    } else if (o && kmNow != null) {
-      body = '<div class="sv-odo"><b>' + nf.format(kmNow) + '</b><span>km</span></div>' +
-        '<div class="sv-detail">Eintrag vom ' + fmtDate(o.date) + ': ' + nf.format(o.km) + ' km, dazu die seither gespeicherten Fahrten</div>' +
-        '<div class="sv-actions"><button class="sv-btn primary" data-act="edit" data-key="odo">Tachostand eintragen</button></div>';
     } else {
-      body = '<div class="sv-headline">Noch kein Kilometerstand</div>' +
-        '<div class="sv-detail">Trag den Tachostand einmal ein. Danach zählt die App jede gespeicherte Fahrt dazu.</div>' +
-        '<div class="sv-actions"><button class="sv-btn primary" data-act="edit" data-key="odo">Eintragen</button></div>';
+      const set = !!(o && kmNow != null);
+      body = '<div class="sv-row">' + icon('odo') +
+        '<div class="sv-main">' +
+          '<span class="sv-name">Kilometerstand<i class="sv-dot" title="' + (set ? 'Aus Fahrten fortgeschrieben' : 'Nicht eingetragen') + '"></i></span>' +
+          '<span class="sv-value">' + (set ? nf.format(kmNow) + '<small>km</small>' : '–') + '</span>' +
+          '<span class="sv-meta">' + (set ? 'Tacho ' + fmtDate(o.date) + ' + Fahrten' : '') + '</span>' +
+        '</div>' +
+        '<div class="sv-btns">' + (editing === 'odo' ? '' :
+          set
+            ? '<button class="sv-btn sv-ico-btn" data-act="edit" data-key="odo" title="Tachostand neu eintragen" aria-label="Tachostand neu eintragen">' + ICONS.pencil + '</button>'
+            : '<button class="sv-btn sv-ico-btn sv-setup" data-act="edit" data-key="odo" title="Tachostand eintragen" aria-label="Tachostand eintragen">' + ICONS.plus + '<span>Eintragen</span></button>') +
+        '</div></div>';
     }
-    return '<article class="sv-card sv-odocard"><header><h3>Kilometerstand</h3></header>' + body + '</article>';
+    return '<article class="sv-card sv-odocard state-' + (data.odo ? 'ok' : 'unset') + (editing === 'odo' ? ' editing' : '') + '">' + body + '</article>';
   }
 
   function render() {

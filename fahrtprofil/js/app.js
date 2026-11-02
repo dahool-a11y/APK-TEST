@@ -107,7 +107,7 @@
       zoomSnap: 0.5,
       attributionControl: true
     });
-    map.setView([48.03, 11.38], 10);
+    map.setView([56.88, 24.6], 7.5);
 
     if (window.OfflineBasemap) {
       window.OfflineBasemap().addTo(map);
