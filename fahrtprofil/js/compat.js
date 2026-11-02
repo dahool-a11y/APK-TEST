@@ -30,7 +30,6 @@
     const all = root.nodeType === 1 ? [root].concat(Array.prototype.slice.call(list)) : Array.prototype.slice.call(list);
     const jobs = [];
     all.forEach((el) => {
-      if (el.__gapDone) return;
       const cs = getComputedStyle(el);
       if (cs.display !== 'flex' && cs.display !== 'inline-flex') return;
       const col = px(cs.columnGap), row = px(cs.rowGap);
@@ -38,7 +37,6 @@
       jobs.push({ el, col, row, dir: cs.flexDirection, wrap: cs.flexWrap !== 'nowrap' });
     });
     jobs.forEach((j) => {
-      j.el.__gapDone = true;
       const kids = Array.prototype.filter.call(j.el.children, (k) => !k.hidden);
       const vertical = j.dir.indexOf('column') === 0;
       kids.forEach((k, i) => {
@@ -51,7 +49,8 @@
           else if (j.col) k.style.marginLeft = j.col + 'px';
         }
       });
-      if (j.wrap) {
+      if (j.wrap && !j.el.__wrapAdj) {
+        j.el.__wrapAdj = true;
         if (j.col) j.el.style.marginRight = (px(j.el.style.marginRight) - j.col) + 'px';
         if (j.row) j.el.style.marginBottom = (px(j.el.style.marginBottom) - j.row) + 'px';
       }
@@ -71,7 +70,11 @@
     let timer = null;
     const queue = [];
     new MutationObserver((muts) => {
-      muts.forEach((m) => m.addedNodes.forEach((n) => { if (n.nodeType === 1) queue.push(n); }));
+      muts.forEach((m) => {
+        // Auch den Container neu bewerten, damit nachträglich eingefügte Kinder Abstand bekommen
+        if (m.addedNodes.length && m.target.nodeType === 1) queue.push(m.target);
+        m.addedNodes.forEach((n) => { if (n.nodeType === 1) queue.push(n); });
+      });
       if (!queue.length || timer) return;
       timer = setTimeout(() => {
         timer = null;
