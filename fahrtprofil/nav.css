@@ -112,7 +112,8 @@ body { padding-left: var(--navw); }
   padding: 0;
 }
 
-@media (max-width: 760px) {
+/* Unter 1000 px passt eine halbe Karte nicht mehr: einspaltig wie die Fahrtzeilen */
+@media (max-width: 1000px) {
   .sv-grid { grid-template-columns: 1fr; }
 }
 
@@ -160,7 +161,7 @@ body { padding-left: var(--navw); }
 .sv-main {
   display: flex;
   flex-direction: column;
-  gap: 1px;
+  gap: 2px;
   flex: 1 1 auto;
   min-width: 0;
 }
@@ -168,10 +169,10 @@ body { padding-left: var(--navw); }
 .sv-name {
   display: flex;
   align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  font-weight: 650;
-  letter-spacing: 0.05em;
+  gap: 7px;
+  font-size: 11.5px;
+  font-weight: 550;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--muted);
   white-space: nowrap;
@@ -185,16 +186,19 @@ body { padding-left: var(--navw); }
 .state-due .sv-dot { background: var(--red); }
 
 .sv-value {
-  font-size: 26px;
-  font-weight: 700;
-  line-height: 1.08;
-  letter-spacing: -0.01em;
+  font-size: clamp(24px, 2.8vw, 38px);
+  font-weight: 650;
+  line-height: 1.14;
+  letter-spacing: -0.015em;
   font-variant-numeric: tabular-nums;
-  color: var(--text);
+  color: #eef4fb;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .sv-value small {
-  margin-left: 5px;
-  font-size: 13px;
+  margin-left: 6px;
+  font-size: clamp(12.5px, 1.2vw, 15px);
   font-weight: 600;
   letter-spacing: 0;
   color: var(--muted);
@@ -202,8 +206,8 @@ body { padding-left: var(--navw); }
 .state-due .sv-value { color: #ffb3b3; }
 
 .sv-meta {
-  font-size: 12px;
-  color: var(--muted2);
+  font-size: clamp(12.5px, 1.1vw, 14px);
+  color: var(--muted);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -215,21 +219,21 @@ body { padding-left: var(--navw); }
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 5px;
-  height: 34px;
-  min-width: 34px;
-  padding: 0 9px;
+  gap: 7px;
+  height: 44px;
+  min-width: 44px;
+  padding: 0 12px;
   border: 1px solid var(--border-strong);
-  border-radius: 9px;
+  border-radius: 11px;
   background: rgba(255, 255, 255, 0.05);
   color: var(--text);
   font: inherit;
-  font-size: 12.5px;
+  font-size: 13.5px;
   font-weight: 600;
   cursor: pointer;
   white-space: nowrap;
 }
-.sv-ico-btn svg { width: 16px; height: 16px; }
+.sv-ico-btn svg { width: 18px; height: 18px; }
 .sv-ico-btn:hover { background: rgba(255, 255, 255, 0.11); }
 .sv-ico-btn:focus-visible { outline: 2px solid rgba(125, 211, 252, 0.7); outline-offset: 2px; }
 .sv-ico-btn.done { color: #86efac; border-color: rgba(61, 220, 132, 0.3); background: rgba(61, 220, 132, 0.1); }
@@ -257,11 +261,11 @@ body { padding-left: var(--navw); }
   flex-direction: column;
   gap: 4px;
   min-width: 0;
-  font-size: 12px;
+  font-size: 12.5px;
   color: var(--muted);
 }
 .sv-field input {
-  height: 40px;
+  height: 44px;
   min-width: 0;
   padding: 0 10px;
   border: 1px solid var(--border-strong);
@@ -280,19 +284,19 @@ body { padding-left: var(--navw); }
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  height: 36px;
-  padding: 0 14px;
+  gap: 7px;
+  height: 44px;
+  padding: 0 16px;
   border: 1px solid var(--border-strong);
-  border-radius: 9px;
+  border-radius: 11px;
   background: rgba(255, 255, 255, 0.05);
   color: var(--text);
   font: inherit;
-  font-size: 13.5px;
+  font-size: 14px;
   font-weight: 600;
   cursor: pointer;
 }
-.sv-btn svg { width: 16px; height: 16px; }
+.sv-btn svg { width: 18px; height: 18px; }
 .sv-btn:hover { background: rgba(255, 255, 255, 0.1); }
 .sv-btn.primary { background: var(--accent); border-color: var(--accent); color: #1a1405; }
 .sv-btn.danger { color: #ff9b9b; border-color: rgba(255, 92, 92, 0.4); margin-left: auto; }
@@ -305,7 +309,24 @@ body { padding-left: var(--navw); }
   .sv-row { gap: 11px; }
   .sv-ico { width: 46px; height: 46px; border-radius: 11px; }
   .sv-ico svg { width: 25px; height: 25px; }
-  .sv-value { font-size: 24px; }
+  .sv-name { font-size: 10px; letter-spacing: 0.08em; }
+  .sv-value { font-size: clamp(22px, 6.8vw, 30px); }
+  .sv-value small { font-size: 12px; }
+  .sv-meta { font-size: 11.5px; }
+}
+
+/* Querformat ab 700 px: Schrift und Schaltflächen wie im Fahrtenbuch (car.css) */
+@media (min-width: 700px) and (orientation: landscape) {
+  .sv-name { font-size: 13px; }
+  .sv-meta { font-size: 14px; }
+  .sv-ico { width: 56px; height: 56px; border-radius: 15px; }
+  .sv-ico svg { width: 30px; height: 30px; }
+  .sv-ico-btn { height: 56px; min-width: 56px; padding: 0 16px; font-size: 15px; }
+  .sv-ico-btn svg { width: 21px; height: 21px; }
+  .sv-field { font-size: 13.5px; }
+  .sv-field input { height: 50px; font-size: 17px; }
+  .sv-btn { height: 50px; padding: 0 18px; font-size: 16px; }
+  .sv-btn svg { width: 18px; height: 18px; }
 }
 
 /* Breite, niedrige Radio-Displays: Kopf schlanker, mehr Platz für Karten */
@@ -313,10 +334,12 @@ body { padding-left: var(--navw); }
   .tp-head { padding-top: 8px; padding-bottom: 8px; }
   .sv-grid { gap: 9px; }
   .sv-card { padding: 8px 10px 8px 10px; gap: 6px; }
+  .sv-name { font-size: 12.5px; }
   .sv-ico { width: 44px; height: 44px; border-radius: 12px; }
   .sv-ico svg { width: 24px; height: 24px; }
-  .sv-value { font-size: 23px; }
-  .sv-meta { font-size: 11.5px; }
+  .sv-ico-btn { height: 48px; min-width: 48px; }
+  .sv-value { font-size: 26px; }
+  .sv-meta { font-size: 13px; }
 }
 
 @media (max-height: 540px) {

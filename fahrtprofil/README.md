@@ -225,14 +225,14 @@ anderer Zielpfad angeben; ohne `--countries` entfallen Land und Grenzen.
 
 ## Service Worker / Updates
 
-`sw.js` cached die App-Shell mit Cache-Namen `fahrtprofil-v34`. Navigationen
+`sw.js` cached die App-Shell mit Cache-Namen `fahrtprofil-v37`. Navigationen
 werden **network-first** geladen (offline aus dem Cache), statische Assets aus
 dem Cache mit Hintergrund-Aktualisierung. Der Precache nutzt `cache: 'reload'`
 und umgeht damit den HTTP-Cache, der sonst eine alte `index.html` liefern
 könnte. Nach Änderungen an HTML, CSS, JS oder Kartendaten **beides gemeinsam**
 erhöhen:
 
-- `CACHE` in `sw.js` (z. B. `fahrtprofil-v35`)
+- `CACHE` in `sw.js` (z. B. `fahrtprofil-v38`)
 - `?v=` an Stylesheet und Skripten in `index.html` sowie in der `ASSETS`-Liste
   von `sw.js`
 

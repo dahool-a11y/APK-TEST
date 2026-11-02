@@ -187,12 +187,12 @@
   function actionButtons(it, set) {
     if (editing === it.key) return '';
     if (!set) {
-      return '<button class="sv-btn sv-ico-btn sv-setup" data-act="edit" data-key="' + it.key + '" ' +
+      return '<button class="sv-ico-btn sv-setup" data-act="edit" data-key="' + it.key + '" ' +
         'title="Einrichten" aria-label="' + it.title + ' einrichten">' + ICONS.plus + '<span>Einrichten</span></button>';
     }
-    return '<button class="sv-btn sv-ico-btn done" data-act="done" data-key="' + it.key + '" ' +
+    return '<button class="sv-ico-btn done" data-act="done" data-key="' + it.key + '" ' +
       'title="' + it.done + '" aria-label="' + it.done + '">' + ICONS.check + '</button>' +
-      '<button class="sv-btn sv-ico-btn" data-act="edit" data-key="' + it.key + '" ' +
+      '<button class="sv-ico-btn" data-act="edit" data-key="' + it.key + '" ' +
       'title="Werte ändern" aria-label="' + it.title + ' bearbeiten">' + ICONS.pencil + '</button>';
   }
 
@@ -238,8 +238,8 @@
         '</div>' +
         '<div class="sv-btns">' + (editing === 'odo' ? '' :
           set
-            ? '<button class="sv-btn sv-ico-btn" data-act="edit" data-key="odo" title="Tachostand neu eintragen" aria-label="Tachostand neu eintragen">' + ICONS.pencil + '</button>'
-            : '<button class="sv-btn sv-ico-btn sv-setup" data-act="edit" data-key="odo" title="Tachostand eintragen" aria-label="Tachostand eintragen">' + ICONS.plus + '<span>Eintragen</span></button>') +
+            ? '<button class="sv-ico-btn" data-act="edit" data-key="odo" title="Tachostand neu eintragen" aria-label="Tachostand neu eintragen">' + ICONS.pencil + '</button>'
+            : '<button class="sv-ico-btn sv-setup" data-act="edit" data-key="odo" title="Tachostand eintragen" aria-label="Tachostand eintragen">' + ICONS.plus + '<span>Eintragen</span></button>') +
         '</div></div>';
     }
     return '<article class="sv-card sv-odocard state-' + (data.odo ? 'ok' : 'unset') + (editing === 'odo' ? ' editing' : '') + '">' + body + '</article>';
