@@ -1,16 +1,25 @@
-/* Fahrtprofil – Navigation und Service-Seite (nach car.css geladen) */
+/* Fahrtprofil – Seitenmenü und Service-Seite (nach car.css geladen) */
 
-/* ---------- Reiter ---------- */
+/* ---------- Seitenmenü: schmale Leiste links, auf allen Seiten gleich ---------- */
+
+:root { --navw: 72px; }
+
+body { padding-left: var(--navw); }
 
 .viewnav {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: var(--navw);
+  z-index: 2300; /* über den Seiten Fahrtenbuch und Service */
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 6px;
-  padding: 4px;
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.03);
-  flex: 0 0 auto;
+  gap: 10px;
+  padding: 12px 0;
+  background: linear-gradient(180deg, #0c131b 0%, #080d13 100%);
+  border-right: 1px solid var(--border);
 }
 
 .nav-btn {
@@ -18,54 +27,75 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  height: 46px;
-  padding: 0 16px;
+  width: 56px;
+  height: 56px;
+  padding: 0;
   border: 0;
-  border-radius: 10px;
+  border-radius: 14px;
   background: transparent;
   color: var(--muted);
-  font: inherit;
-  font-size: 16px;
-  font-weight: 600;
-  white-space: nowrap;
   cursor: pointer;
   transition: background 0.15s, color 0.15s;
 }
 
-.nav-btn svg { width: 22px; height: 22px; flex: 0 0 auto; }
-.nav-btn:hover { color: var(--text); background: rgba(255, 255, 255, 0.05); }
+.nav-btn svg { width: 28px; height: 28px; flex: 0 0 auto; }
+.nav-btn:hover { color: var(--text); background: rgba(255, 255, 255, 0.06); }
 .nav-btn.active { background: var(--accent); color: #1a1405; }
 .nav-btn:focus-visible { outline: 2px solid rgba(125, 211, 252, 0.7); outline-offset: 2px; }
 
 .nav-badge {
-  min-width: 20px;
-  height: 20px;
-  padding: 0 6px;
-  border-radius: 10px;
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
   background: #ff5c5c;
   color: #fff;
   font-size: 12px;
-  line-height: 20px;
+  font-weight: 700;
+  line-height: 18px;
   text-align: center;
 }
 
-/* Fahrten-Knöpfe der alten Kopfzeile ersetzt der Reiter */
+/* Die Seiten Fahrtenbuch und Service liegen rechts neben dem Menü */
+.trips-page { left: var(--navw); }
+
+/* Alte Fahrten-Knöpfe ersetzt das Menü */
 #btnTrips, .rail-action, .tp-close { display: none !important; }
 
-.tp-head .viewnav { margin-left: auto; }
-
-/* Auf schmalen Anzeigen nur Symbole */
-@media (max-width: 1100px) {
-  .topbar .nav-btn span:not(.nav-badge) { display: none; }
-  .topbar .nav-btn { padding: 0 14px; }
-  .topbar .nav-btn.active span:not(.nav-badge) { display: inline; }
-  .trip { display: none; }
+/* 10-Zoll-Radios (1280 x 720): Platz für den Fahrtnamen schaffen */
+@media (max-width: 1399px) {
+  .topbar .brand-text { display: none; }
+  .topbar #btnShuffle .btn-text,
+  .topbar .btn[for="fileInput"] .btn-text { display: none; }
 }
 
-@media (max-width: 700px) {
-  .tp-head .nav-btn span:not(.nav-badge) { display: none; }
-  .tp-head .nav-btn.active span:not(.nav-badge) { display: inline; }
+/* Niedrige Displays: etwas kompakter */
+@media (max-height: 540px) {
+  :root { --navw: 64px; }
+  .nav-btn { width: 50px; height: 50px; }
+  .nav-btn svg { width: 26px; height: 26px; }
+  .viewnav { gap: 8px; padding: 8px 0; }
+}
+
+/* Schmale Hochformat-Anzeigen (Handy): Menü wird zur Leiste unten */
+@media (max-width: 680px) {
+  :root { --navw: 0px; --navh: 60px; }
+  body { padding-left: 0; padding-bottom: var(--navh); }
+  .viewnav {
+    top: auto;
+    width: auto;
+    height: var(--navh);
+    right: 0;
+    flex-direction: row;
+    justify-content: space-around;
+    padding: 0 12px;
+    border-right: 0;
+    border-top: 1px solid var(--border);
+  }
+  .trips-page { left: 0; bottom: var(--navh); }
   .brand-text { display: none; }
 }
 
@@ -172,16 +202,9 @@
   .sv-card { padding: 14px 16px; gap: 9px; }
   .sv-headline { font-size: 21px; }
   .sv-odo b { font-size: 36px; }
-  .nav-btn { height: 44px; }
 }
 
 @media (max-height: 540px) {
   .service-page .tp-foot { display: none; }
 }
 
-/* 10-Zoll-Radios (1280 x 720): Platz für den Fahrtnamen schaffen */
-@media (max-width: 1399px) {
-  .topbar .brand-text { display: none; }
-  .topbar #btnShuffle .btn-text,
-  .topbar .btn[for="fileInput"] .btn-text { display: none; }
-}

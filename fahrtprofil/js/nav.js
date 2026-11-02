@@ -25,8 +25,8 @@
     document.querySelectorAll('[data-nav]').forEach((slot) => {
       slot.innerHTML = VIEWS.map((v) =>
         '<button type="button" class="nav-btn' + (v.id === current ? ' active' : '') + '" data-view="' + v.id + '"' +
-        (v.id === current ? ' aria-current="page"' : '') + '>' +
-        ICONS[v.id] + '<span>' + v.label + '</span>' +
+        ' title="' + v.label + '" aria-label="' + v.label + '"' + (v.id === current ? ' aria-current="page"' : '') + '>' +
+        ICONS[v.id] +
         (v.id === 'service' && badge > 0 ? '<b class="nav-badge">' + badge + '</b>' : '') +
         '</button>'
       ).join('');
