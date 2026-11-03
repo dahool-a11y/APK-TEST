@@ -12,9 +12,10 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <link rel="stylesheet" href="vendor/leaflet.css">
-  <link rel="stylesheet" href="styles.css?v=37">
-  <link rel="stylesheet" href="car.css?v=37">
-  <link rel="stylesheet" href="nav.css?v=37">
+  <link rel="stylesheet" href="styles.css?v=41">
+  <link rel="stylesheet" href="car.css?v=41">
+  <link rel="stylesheet" href="nav.css?v=41">
+  <link rel="stylesheet" href="diag.css?v=41">
 </head>
 <body>
   <nav class="viewnav" id="sidenav" data-nav aria-label="Hauptmenü"></nav>
@@ -87,6 +88,8 @@
             <div><span>Höhe</span><b id="detailEle">–</b></div>
             <div><span>Strecke</span><b id="detailKm">–</b></div>
             <div><span>Fahrzeit</span><b id="detailTime">–</b></div>
+            <div class="detail-obd" id="detailRpmWrap" hidden><span>Drehzahl</span><b id="detailRpm">–</b></div>
+            <div class="detail-obd" id="detailCoolWrap" hidden><span>Kühlmittel</span><b id="detailCool">–</b></div>
           </div>
           <div class="detail-hint" id="detailHint">Klick auf die Karte fixiert den Punkt</div>
         </div>
@@ -234,6 +237,35 @@
         </article>
       </div>
 
+      <div class="tp-tools">
+        <label class="tp-search" for="tripSearch">
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" stroke="currentColor" stroke-width="1.8"/><path d="M15.4 15.4 21 21" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+          <input type="search" id="tripSearch" placeholder="Fahrt suchen …" autocomplete="off">
+        </label>
+        <div class="tp-filters" id="tripFilters" role="group" aria-label="Fahrten filtern">
+          <button type="button" class="tp-chip active" data-filter="all">Alle</button>
+          <button type="button" class="tp-chip" data-filter="gps">GPS</button>
+          <button type="button" class="tp-chip" data-filter="import">Import</button>
+          <button type="button" class="tp-chip" data-filter="simulation">Simuliert</button>
+          <button type="button" class="tp-chip" data-filter="obd">OBD</button>
+        </div>
+        <select class="tp-select" id="tripSort" aria-label="Fahrten sortieren">
+          <option value="new">Neueste zuerst</option>
+          <option value="km">Größte Strecke</option>
+          <option value="cons">Höchster Verbrauch</option>
+          <option value="name">Name A–Z</option>
+        </select>
+        <div class="tp-backup">
+          <button type="button" class="tp-iconbtn" id="btnBackup" title="Gesamtsicherung exportieren" aria-label="Gesamtsicherung exportieren">
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 4v11m0 0 4-4m-4 4-4-4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 17v2a1.5 1.5 0 0 0 1.5 1.5h11A1.5 1.5 0 0 0 19 19v-2" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+          </button>
+          <button type="button" class="tp-iconbtn" id="btnRestore" title="Sicherung importieren" aria-label="Sicherung importieren">
+            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 16V5m0 0 4 4m-4-4L8 9" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 17v2a1.5 1.5 0 0 0 1.5 1.5h11A1.5 1.5 0 0 0 19 19v-2" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+          </button>
+          <input type="file" id="backupInput" accept=".json,application/json" hidden>
+        </div>
+      </div>
+
       <section class="tp-listwrap">
         <div class="tp-listhead">
           <h3>Fahrten <b class="tp-count" id="tripListCount">0</b></h3>
@@ -271,18 +303,174 @@
     </footer>
   </section>
 
+  <section class="trips-page diag-page" id="diagPage" role="dialog" aria-modal="true" aria-labelledby="diagTitle" hidden>
+    <div class="tp-scroll dg-scroll">
+      <header class="dg-head">
+        <div class="dg-head-main">
+          <span class="tp-eyebrow">Fahrzeug · OBD-II / CAN</span>
+          <h2 id="diagTitle">Diagnose</h2>
+        </div>
+        <div class="dg-status state-off" id="dgStatus" role="status" aria-live="polite"><i></i><span>Nicht verbunden</span></div>
+        <div class="dg-headtools">
+          <button type="button" class="dg-btn primary" id="dgConnect">Verbinden</button>
+          <button type="button" class="dg-btn" id="dgHud" title="Vollbild-HUD (H)">HUD</button>
+        </div>
+      </header>
+
+      <div class="dg-sources" role="group" aria-label="Verbindungsart">
+        <button type="button" class="dg-src active" data-src="demo">Demo</button>
+        <button type="button" class="dg-src" data-src="bridge">Android</button>
+        <button type="button" class="dg-src" data-src="serial">USB</button>
+        <button type="button" class="dg-src" data-src="ble">Bluetooth</button>
+        <label class="dg-baud" for="dgBaud">Baud
+          <select id="dgBaud">
+            <option value="38400" selected>38400</option>
+            <option value="9600">9600</option>
+            <option value="115200">115200</option>
+            <option value="500000">500000</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="dg-top">
+        <article class="dg-hero">
+          <span class="dg-label">Momentanverbrauch</span>
+          <div class="dg-hero-value"><b id="dgCons">–</b><span>L/100 km</span></div>
+          <span class="dg-meta" id="dgConsMeta">Nicht verbunden</span>
+          <canvas id="dgSpark" aria-label="Verbrauchsverlauf"></canvas>
+        </article>
+
+        <div class="dg-grid">
+          <article class="dg-tile">
+            <span class="dg-label">Tempo</span>
+            <b><span id="dgSpeed">–</span><i>km/h</i></b>
+            <div class="dg-bar"><i id="dgSpeedBar"></i></div>
+          </article>
+          <article class="dg-tile">
+            <span class="dg-label">Drehzahl</span>
+            <b><span id="dgRpm">–</span><i>1/min</i></b>
+            <div class="dg-bar"><i id="dgRpmBar"></i></div>
+          </article>
+          <article class="dg-tile">
+            <span class="dg-label">Kühlmittel</span>
+            <b><span id="dgCool">–</span><i>°C</i></b>
+            <div class="dg-bar"><i id="dgCoolBar"></i></div>
+          </article>
+          <article class="dg-tile">
+            <span class="dg-label">Motorlast</span>
+            <b><span id="dgLoad">–</span><i>%</i></b>
+            <div class="dg-bar"><i id="dgLoadBar"></i></div>
+          </article>
+          <article class="dg-tile">
+            <span class="dg-label">Drosselklappe</span>
+            <b><span id="dgThr">–</span><i>%</i></b>
+            <div class="dg-bar"><i id="dgThrBar"></i></div>
+          </article>
+          <article class="dg-tile">
+            <span class="dg-label">Luftmasse</span>
+            <b><span id="dgMaf">–</span><i>g/s</i></b>
+            <div class="dg-bar"><i id="dgMafBar"></i></div>
+          </article>
+          <article class="dg-tile">
+            <span class="dg-label">Saugrohr</span>
+            <b><span id="dgMap">–</span><i>kPa</i></b>
+            <div class="dg-bar"><i id="dgMapBar"></i></div>
+          </article>
+          <article class="dg-tile">
+            <span class="dg-label">Bordspannung</span>
+            <b><span id="dgVolt">–</span><i>V</i></b>
+            <div class="dg-bar"><i id="dgVoltBar"></i></div>
+          </article>
+        </div>
+      </div>
+
+      <div class="dg-cols">
+        <section class="dg-card">
+          <header class="dg-cardhead">
+            <h3>Fehlercodes</h3>
+            <span class="dg-mil" id="dgMil" hidden>MIL</span>
+          </header>
+          <div class="dg-dtc" id="dgDtc"><span class="dg-empty">Noch nicht gelesen</span></div>
+          <div class="dg-actions">
+            <button type="button" class="dg-btn" id="dgReadDtc">Lesen</button>
+            <button type="button" class="dg-btn danger" id="dgClearDtc">Löschen</button>
+            <button type="button" class="dg-btn" id="dgScan">PIDs scannen</button>
+          </div>
+        </section>
+
+        <section class="dg-card dg-logcard">
+          <header class="dg-cardhead">
+            <h3>Protokoll</h3>
+            <button type="button" class="dg-btn small" id="dgLogBtn">Log starten</button>
+          </header>
+          <div class="dg-console" id="dgConsole" role="log" aria-live="polite"></div>
+          <form class="dg-send" id="dgSendForm">
+            <input type="text" id="dgCmd" placeholder="Befehl, z. B. 0100" autocomplete="off" spellcheck="false" aria-label="OBD-Befehl">
+            <button type="submit" class="dg-btn small primary">Senden</button>
+            <button type="button" class="dg-btn small" id="dgClearLog">Leeren</button>
+          </form>
+        </section>
+      </div>
+
+      <p class="dg-note">
+        Demo läuft ohne Adapter. USB und Bluetooth brauchen Chrome/Edge über HTTPS oder localhost.
+        In der Android-App verbindet „Android“ den Adapter über die native Brücke.
+        Alle Messwerte bleiben auf diesem Gerät.
+      </p>
+    </div>
+  </section>
+
+  <div class="hud" id="hud" hidden role="dialog" aria-modal="true" aria-label="Fahrten-HUD">
+    <div class="hud-top">
+      <span class="hud-dot off" id="hudDot"></span>
+      <span id="hudState">Kein Signal</span>
+      <span id="hudTime">--:--</span>
+    </div>
+    <div class="hud-main">
+      <div class="hud-speed">
+        <b id="hudSpeed">–</b>
+        <span>km/h</span>
+      </div>
+      <div class="hud-side">
+        <div><span>Verbrauch</span><b id="hudCons">–</b><i>L/100</i></div>
+        <div><span>Drehzahl</span><b id="hudRpm">–</b><i>1/min</i></div>
+        <div><span>Kühlmittel</span><b id="hudCool">–</b><i>°C</i></div>
+      </div>
+    </div>
+    <div class="hud-foot">Antippen oder Esc zum Schließen</div>
+  </div>
+
+  <div class="trip-editor" id="tripEditor" hidden role="dialog" aria-modal="true" aria-labelledby="teTitle">
+    <form class="te-card" id="teForm">
+      <h3 id="teTitle">Fahrt bearbeiten</h3>
+      <div class="te-meta" id="teMeta"></div>
+      <label class="te-field">Name
+        <input type="text" id="teName" maxlength="80" autocomplete="off">
+      </label>
+      <label class="te-field">Notiz
+        <textarea id="teNotes" rows="3" maxlength="400" placeholder="z. B. Tankstelle, Beladung, Auffälligkeiten …"></textarea>
+      </label>
+      <div class="te-actions">
+        <button type="button" class="dg-btn" id="teCancel">Abbrechen</button>
+        <button type="submit" class="dg-btn primary" id="teSave">Speichern</button>
+      </div>
+    </form>
+  </div>
+
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
   <script src="vendor/leaflet.js"></script>
-  <script src="js/compat.js?v=37"></script>
-  <script src="js/native-bridge.js?v=37"></script>
-  <script src="data/basemap.js?v=37"></script>
-  <script src="js/basemap.js?v=37"></script>
-  <script src="js/simulate.js?v=37"></script>
-  <script src="js/data.js?v=37"></script>
-  <script src="js/store.js?v=37"></script>
-  <script src="js/app.js?v=37"></script>
-  <script src="js/service.js?v=37"></script>
-  <script src="js/nav.js?v=37"></script>
+  <script src="js/compat.js?v=41"></script>
+  <script src="js/native-bridge.js?v=41"></script>
+  <script src="data/basemap.js?v=41"></script>
+  <script src="js/basemap.js?v=41"></script>
+  <script src="js/simulate.js?v=41"></script>
+  <script src="js/data.js?v=41"></script>
+  <script src="js/store.js?v=41"></script>
+  <script src="js/app.js?v=41"></script>
+  <script src="js/obd.js?v=41"></script>
+  <script src="js/diag.js?v=41"></script>
+  <script src="js/service.js?v=41"></script>
+  <script src="js/nav.js?v=41"></script>
 </body>
 </html>

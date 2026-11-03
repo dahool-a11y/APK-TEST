@@ -138,7 +138,11 @@
       source: 'import',
       label: 'JSON-Import',
       fileName,
-      date: (obj && obj.date) || null
+      date: (obj && obj.date) || null,
+      notes: (obj && obj.notes) || '',
+      obd: !!(obj && obj.obd),
+      consSource: (obj && obj.consSource) || '',
+      stops: obj && Array.isArray(obj.stops) ? obj.stops : undefined
     });
   }
 
@@ -180,5 +184,52 @@
     throw new Error('Unbekanntes Format. Bitte JSON, CSV oder GPX laden.');
   }
 
-  window.TripData = { loadFile };
+  /* ---------- Gesamtsicherung ----------
+   * Eine Datei mit mehreren Fahrten: {kind:'fahrtprofil-backup', trips:[...]}.
+   * Jede Fahrt wird wie ein Import behandelt, damit alte und neue Felder
+   * (OBD-Werte, Notizen, Standzeiten) erhalten bleiben.
+   */
+
+  function backupTrip(t, fileName) {
+    if (!t || !Array.isArray(t.points) || t.points.length < 2) return null;
+    const meta = t.meta || {};
+    try {
+      return TripSim.finalize(t.points, {
+        name: t.name || meta.label || 'Fahrt',
+        source: meta.source || 'import',
+        label: meta.label || 'Sicherung',
+        date: meta.date || t.savedAt || null,
+        estimatedCons: meta.estimatedCons,
+        fileName: meta.fileName || fileName,
+        notes: meta.notes || '',
+        obd: !!meta.obd,
+        consSource: meta.consSource || '',
+        stops: Array.isArray(t.stops) ? t.stops : undefined
+      });
+    } catch (err) {
+      return null;
+    }
+  }
+
+  function parseBackup(text, fileName) {
+    let obj;
+    try { obj = JSON.parse(text); } catch (err) { return null; }
+    if (!obj || obj.kind !== 'fahrtprofil-backup' || !Array.isArray(obj.trips)) return null;
+    return obj.trips.map((t) => backupTrip(t, fileName)).filter(Boolean);
+  }
+
+  async function readAny(file) {
+    const text = await file.text();
+    const ext = (file.name.split('.').pop() || '').toLowerCase();
+    if (ext === 'json') {
+      const list = parseBackup(text, file.name);
+      if (list) return list;
+      return [parseJSON(text, file.name)];
+    }
+    if (ext === 'csv' || ext === 'txt') return [parseCSV(text, file.name)];
+    if (ext === 'gpx') return [parseGPX(text, file.name)];
+    throw new Error('Unbekanntes Format. Bitte JSON, CSV oder GPX laden.');
+  }
+
+  window.TripData = { loadFile, readAny };
 })();

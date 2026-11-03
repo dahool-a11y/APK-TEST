@@ -51,13 +51,16 @@
   }
 
   function round(v, digits) {
+    if (v === null || v === undefined || v === '') return null;
+    const n = Number(v);
+    if (!Number.isFinite(n)) return null;
     const f = Math.pow(10, digits);
-    return Math.round(v * f) / f;
+    return Math.round(n * f) / f;
   }
 
   function encode(trip, id, savedAt) {
     return {
-      v: 1,
+      v: 2,
       id,
       savedAt,
       name: trip.name || 'Fahrt',
@@ -66,7 +69,10 @@
         date: trip.meta.date || savedAt,
         label: trip.meta.label || '',
         estimatedCons: !!trip.meta.estimatedCons,
-        fileName: trip.meta.fileName || null
+        fileName: trip.meta.fileName || null,
+        notes: String(trip.meta.notes || '').slice(0, 400),
+        obd: !!trip.meta.obd,
+        consSource: trip.meta.consSource || ''
       },
       stats: {
         totalDist: trip.stats.totalDist,
@@ -75,8 +81,16 @@
         maxCons: trip.stats.maxCons,
         maxSpeed: trip.stats.maxSpeed,
         avgSpeed: trip.stats.avgSpeed,
-        fuel: trip.stats.fuel
+        fuel: trip.stats.fuel,
+        obdPoints: trip.stats.obdPoints || 0,
+        maxRpm: trip.stats.maxRpm || 0,
+        maxCoolant: trip.stats.maxCoolant || 0
       },
+      stops: (trip.stops || []).map((s) => [
+        Math.round(s.idx || 0),
+        round(s.dist, 1),
+        Math.round(s.dwell || 0)
+      ]),
       points: trip.points.map((p) => [
         round(p.lat, 6),
         round(p.lng, 6),
@@ -86,7 +100,13 @@
         round(p.dist, 1),
         round(p.time, 1),
         p.phase || null,
-        round(p.bearing || 0, 0)
+        round(p.bearing || 0, 0),
+        round(p.rpm, 0),
+        round(p.coolant, 1),
+        round(p.load, 1),
+        round(p.throttle, 1),
+        round(p.fuel, 1),
+        p.consSrc || null
       ])
     };
   }
@@ -95,9 +115,10 @@
     return {
       id: rec.id,
       name: rec.name,
-      meta: rec.meta,
+      savedAt: rec.savedAt,
+      meta: Object.assign({ notes: '', obd: false, consSource: '' }, rec.meta || {}),
       stats: rec.stats,
-      stops: [],
+      stops: (rec.stops || []).map((a) => ({ idx: a[0], dist: a[1], dwell: a[2] })),
       points: rec.points.map((a) => ({
         lat: a[0],
         lng: a[1],
@@ -107,7 +128,13 @@
         dist: a[5],
         time: a[6],
         phase: a[7],
-        bearing: a[8]
+        bearing: a[8],
+        rpm: a[9] != null ? a[9] : null,
+        coolant: a[10] != null ? a[10] : null,
+        load: a[11] != null ? a[11] : null,
+        throttle: a[12] != null ? a[12] : null,
+        fuel: a[13] != null ? a[13] : null,
+        consSrc: a[14] || null
       }))
     };
   }
@@ -122,13 +149,17 @@
       source: rec.meta.source,
       label: rec.meta.label,
       estimatedCons: !!rec.meta.estimatedCons,
+      notes: rec.meta.notes || '',
+      obd: !!rec.meta.obd,
+      consSource: rec.meta.consSource || '',
       km: (s.totalDist || 0) / 1000,
       duration: s.duration || 0,
       avgCons: s.avgCons || 0,
       maxCons: s.maxCons || 0,
       avgSpeed: s.avgSpeed || 0,
       fuel: s.fuel || 0,
-      points: rec.points.length
+      points: rec.points.length,
+      stops: (rec.stops || []).length
     };
   }
 
@@ -156,6 +187,24 @@
 
   /* ---------- API ---------- */
 
+  async function persist(rec, summary) {
+    const db = await openDB();
+    if (!db) {
+      lsSave(rec, summary);
+      return summary;
+    }
+
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction([FULL, META], 'readwrite');
+      tx.objectStore(FULL).put(rec);
+      tx.objectStore(META).put(summary);
+      tx.oncomplete = resolve;
+      tx.onerror = () => reject(tx.error || new Error('Speichern fehlgeschlagen.'));
+      tx.onabort = () => reject(tx.error || new Error('Speichern abgebrochen.'));
+    });
+    return summary;
+  }
+
   async function save(trip) {
     if (!trip || !trip.points || trip.points.length < 2) {
       throw new Error('Fahrt enthält keine Punkte.');
@@ -169,22 +218,7 @@
       navigator.storage.persist().catch(() => {});
     }
 
-    const db = await openDB();
-    if (!db) {
-      lsSave(rec, summary);
-      trip.id = id;
-      return summary;
-    }
-
-    await new Promise((resolve, reject) => {
-      const tx = db.transaction([FULL, META], 'readwrite');
-      tx.objectStore(FULL).put(rec);
-      tx.objectStore(META).put(summary);
-      tx.oncomplete = resolve;
-      tx.onerror = () => reject(tx.error || new Error('Speichern fehlgeschlagen.'));
-      tx.onabort = () => reject(tx.error || new Error('Speichern abgebrochen.'));
-    });
-
+    await persist(rec, summary);
     trip.id = id;
     return summary;
   }
@@ -237,5 +271,30 @@
     });
   }
 
-  window.TripStore = { save, list, get, remove };
+  async function updateMeta(id, patch) {
+    const trip = await get(id);
+    if (!trip) return null;
+    if (patch && patch.name !== undefined) {
+      trip.name = String(patch.name || '').trim().slice(0, 80) || 'Fahrt';
+    }
+    if (patch && patch.notes !== undefined) {
+      trip.meta.notes = String(patch.notes || '').trim().slice(0, 400);
+    }
+    const rec = encode(trip, id, trip.savedAt || new Date().toISOString());
+    const summary = summarize(rec);
+    await persist(rec, summary);
+    return summary;
+  }
+
+  async function all() {
+    const items = await list();
+    const out = [];
+    for (const item of items) {
+      const trip = await get(item.id);
+      if (trip) out.push(trip);
+    }
+    return out;
+  }
+
+  window.TripStore = { save, list, get, remove, updateMeta, all };
 })();

@@ -26,6 +26,8 @@
     timer: 0,
     lastFix: 0,
     last: null,
+    lastSpeed: null,
+    obdPoints: 0,
     line: null,
     marker: null,
     circle: null
@@ -46,6 +48,8 @@
     playing: false,
     follow: true
   };
+
+  const tripsView = { q: '', filter: 'all', sort: 'new' };
 
   let map;
   let routeLayer;
@@ -69,6 +73,8 @@
   const appRoot = document.querySelector('.app');
   let drawerTimer = 0;
   let tripsOpener = null;
+  let editorId = null;
+  let lastFocused = null;
 
   init();
 
@@ -328,6 +334,12 @@
     $('detailEle').textContent = fmt0.format(p.ele) + ' m';
     $('detailKm').textContent = fmt1.format(p.dist / 1000) + ' km';
     $('detailTime').textContent = formatClock(p.time);
+    const hasRpm = p.rpm !== null && p.rpm !== undefined;
+    const hasCool = p.coolant !== null && p.coolant !== undefined;
+    $('detailRpmWrap').hidden = !hasRpm;
+    $('detailCoolWrap').hidden = !hasCool;
+    $('detailRpm').textContent = hasRpm ? fmt0.format(p.rpm) + ' 1/min' : '–';
+    $('detailCool').textContent = hasCool ? fmt0.format(p.coolant) + ' °C' : '–';
     $('detailHint').textContent = locked
       ? 'Fixiert · Klick daneben oder Esc löst'
       : 'Klick auf die Karte fixiert den Punkt';
@@ -819,6 +831,8 @@
     rec.start = Date.now();
     rec.lastFix = 0;
     rec.last = null;
+    rec.lastSpeed = null;
+    rec.obdPoints = 0;
 
     rec.line = L.polyline([], {
       pane: 'livePane', color: '#7dd3fc', weight: 5, opacity: 0.95,
@@ -866,22 +880,42 @@
     // Hintergrund Punkte sammelt und gebündelt abliefert.
     const time = (pos.timestamp || Date.now()) / 1000;
 
-    if (acc > 100 && rec.points.length > 0) {
+    // Erstfix: schlechte Genauigkeit nicht als Startpunkt übernehmen.
+    if (!rec.points.length && acc > 65) {
+      $('recState').textContent = 'GPS wird genauer …';
+      $('recAcc').textContent = fmt0.format(acc) + ' m';
+      return;
+    }
+    if (acc > 80 && rec.points.length > 0) {
       $('recState').textContent = 'GPS-Genauigkeit schwach …';
       $('recAcc').textContent = fmt0.format(acc) + ' m';
       return;
     }
 
     let speed = Number.isFinite(c.speed) ? Math.max(0, c.speed * 3.6) : null;
+    const obd = window.FahrtOBD && FahrtOBD.isConnected() ? FahrtOBD.snapshot() : null;
+    if (speed === null && obd && obd.live && obd.speed != null) speed = obd.speed;
+
     let step = 0;
     if (rec.last) {
       step = TripSim.haversine(rec.last, { lat, lng });
       const dt = time - rec.last.time;
       if (speed === null && dt > 0.5) speed = Math.max(0, (step / dt) * 3.6);
-      if (step < 1.5 && dt < 2) return;
+
+      // Ausreißer: ein Sprung über ~200 km/h zwischen zwei Fixes ist kein Auto.
+      if (dt > 0.4 && dt < 20 && step / dt > 55) {
+        $('recState').textContent = 'GPS-Sprung ignoriert';
+        return;
+      }
+
+      // Drift standing still: kleine Bewegung unterhalb der Genauigkeit zählt nicht.
+      const minMove = Math.max(1.2, Math.min(12, acc * 0.25));
+      if (step < minMove && dt < 7) return;
       rec.distance += step;
     }
+    if (speed !== null) speed = Math.min(300, Math.max(0, speed));
     rec.last = { lat, lng, time };
+    rec.lastSpeed = speed;
 
     const point = {
       lat,
@@ -890,6 +924,23 @@
       ele: Number.isFinite(c.altitude) ? c.altitude : null
     };
     if (speed !== null) point.speed = speed;
+
+    // OBD-Werte direkt am GPS-Punkt festhalten. Damit wird aus „geschätzt“
+    // ein gemessener Verbrauch, sobald ein Adapter verbunden ist.
+    if (obd && obd.live) {
+      point.obd = true;
+      if (obd.rpm != null) point.rpm = obd.rpm;
+      if (obd.coolant != null) point.coolant = obd.coolant;
+      if (obd.load != null) point.load = obd.load;
+      if (obd.throttle != null) point.throttle = obd.throttle;
+      if (obd.fuel != null) point.fuel = obd.fuel;
+      if (obd.cons != null && obd.cons > 0 && obd.consSrc && speed !== null && speed >= 3) {
+        point.cons = obd.cons;
+        point.consSrc = 'obd';
+        rec.obdPoints++;
+      }
+    }
+
     rec.points.push(point);
     rec.lastFix = Date.now();
 
@@ -967,17 +1018,20 @@
     }
 
     try {
+      const withObd = rec.obdPoints > 0;
       const trip = TripSim.finalize(rec.points, {
         name: 'GPS-Aufzeichnung',
         source: 'gps',
-        label: 'GPS-Aufzeichnung',
-        date: new Date().toISOString()
+        label: withObd ? 'GPS + OBD' : 'GPS-Aufzeichnung',
+        date: new Date().toISOString(),
+        obd: withObd,
+        consSource: withObd ? 'obd' : 'estimate'
       });
       startTrip(trip, true);
       saveTrip(trip).then((summary) => {
         if (!summary) return;
         toast('GPS-Aufzeichnung gespeichert · ' + fmt1.format(trip.stats.totalDist / 1000) +
-          ' km' + (trip.meta.estimatedCons ? ' · Verbrauch geschätzt' : ''));
+          ' km' + (withObd ? ' · Verbrauch gemessen' : ' · Verbrauch geschätzt'));
       });
     } catch (err) {
       toast(err.message || 'Aufzeichnung konnte nicht ausgewertet werden.', true);
@@ -996,12 +1050,32 @@
       tripsCache = [];
     }
     renderTripsSummary(tripsCache);
-    renderTripsList(tripsCache);
-    $('tripListCount').textContent = String(tripsCache.length);
+    renderTripsList(visibleTrips());
     const badge = $('tripCount');
     badge.textContent = String(tripsCache.length);
     badge.hidden = tripsCache.length === 0;
     $('railTripCount').textContent = String(tripsCache.length);
+  }
+
+  function tripMatches(t) {
+    if (tripsView.filter === 'obd' && !t.obd) return false;
+    if (tripsView.filter !== 'all' && tripsView.filter !== 'obd' && t.source !== tripsView.filter) return false;
+    const q = tripsView.q.trim().toLowerCase();
+    if (!q) return true;
+    const hay = [t.name, t.notes, t.label, t.source, formatDate(t.date)].join(' ').toLowerCase();
+    return hay.indexOf(q) >= 0;
+  }
+
+  function visibleTrips() {
+    const list = tripsCache.filter(tripMatches);
+    const sort = tripsView.sort;
+    list.sort((a, b) => {
+      if (sort === 'km') return (b.km || 0) - (a.km || 0);
+      if (sort === 'cons') return (b.avgCons || 0) - (a.avgCons || 0);
+      if (sort === 'name') return String(a.name).localeCompare(String(b.name), 'de');
+      return String(b.savedAt || '').localeCompare(String(a.savedAt || ''));
+    });
+    return list;
   }
 
   function renderTripsSummary(trips) {
@@ -1049,7 +1123,20 @@
     list.innerHTML = '';
     list.hidden = trips.length === 0;
     empty.hidden = trips.length > 0;
-    if (!trips.length) return;
+    $('tripListCount').textContent = String(trips.length);
+
+    if (!trips.length) {
+      const p = empty.querySelector('p');
+      const span = empty.querySelector('span');
+      if (tripsCache.length) {
+        if (p) p.textContent = 'Keine Fahrt passt zur Auswahl.';
+        if (span) span.textContent = 'Suche leeren oder einen anderen Filter wählen.';
+      } else {
+        if (p) p.textContent = 'Noch keine Fahrten gespeichert.';
+        if (span) span.textContent = 'GPS-Aufzeichnungen und importierte Dateien erscheinen automatisch hier.';
+      }
+      return;
+    }
 
     const frag = document.createDocumentFragment();
     for (const t of trips) {
@@ -1058,7 +1145,7 @@
       if (state.trip && state.trip.id === t.id) row.classList.add('current');
       row.tabIndex = 0;
       row.setAttribute('role', 'button');
-      row.title = t.name + ' · ' + formatDate(t.date);
+      row.title = t.name + ' · ' + formatDate(t.date) + (t.notes ? ' · ' + t.notes : '');
       row.dataset.id = t.id;
 
       const kmText = (t.km >= 100 ? fmt0.format(t.km) : fmt1.format(t.km)) + ' km';
@@ -1074,12 +1161,30 @@
 
       const sub = document.createElement('span');
       sub.className = 'trip-row-sub';
+
+      const sourceLabel = t.source === 'gps' ? 'GPS' : t.source === 'import' ? 'Import' : t.source === 'simulation' ? 'Simuliert' : 'Fahrt';
       const chip = document.createElement('span');
       chip.className = 'trip-chip';
-      chip.textContent = t.source === 'gps' ? 'GPS' : t.source === 'import' ? 'Import' : 'Fahrt';
+      chip.textContent = sourceLabel;
+      sub.append(chip);
+
+      if (t.obd) {
+        const obdChip = document.createElement('span');
+        obdChip.className = 'trip-chip obd';
+        obdChip.textContent = 'OBD';
+        sub.append(obdChip);
+      }
+
       const date = document.createElement('span');
       date.textContent = formatDate(t.date);
-      sub.append(chip, date);
+      sub.append(date);
+
+      if (t.notes) {
+        const note = document.createElement('span');
+        note.className = 'trip-row-note';
+        note.textContent = t.notes;
+        sub.append(note);
+      }
       main.append(name, sub);
 
       const metrics = document.createElement('div');
@@ -1092,6 +1197,17 @@
       cons.textContent = consText;
       cons.style.color = colorFor(t.avgCons || 0);
       metrics.append(km, cons);
+
+      const edit = document.createElement('button');
+      edit.type = 'button';
+      edit.className = 'trip-edit';
+      edit.title = 'Fahrt bearbeiten';
+      edit.setAttribute('aria-label', 'Fahrt „' + t.name + '“ bearbeiten');
+      edit.innerHTML = '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 20h4.5L20 8.5a2.1 2.1 0 0 0-3-3L5.5 17z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M14.5 6.5l3 3" stroke="currentColor" stroke-width="1.7"/></svg>';
+      edit.addEventListener('click', (e) => {
+        e.stopPropagation();
+        openEditor(t, edit);
+      });
 
       const del = document.createElement('button');
       del.type = 'button';
@@ -1113,7 +1229,7 @@
         }
       });
 
-      row.append(main, metrics, del);
+      row.append(main, metrics, edit, del);
       frag.appendChild(row);
     }
     list.appendChild(frag);
@@ -1158,6 +1274,139 @@
       toast('Fahrt gelöscht');
     } catch (err) {
       toast('Löschen fehlgeschlagen.', true);
+    }
+  }
+
+  /* ---------- Fahrt bearbeiten ---------- */
+
+  function openEditor(t, opener) {
+    const box = $('tripEditor');
+    if (!box) return;
+    editorId = t.id;
+    lastFocused = opener || document.activeElement;
+    $('teName').value = t.name || '';
+    $('teNotes').value = t.notes || '';
+    $('teMeta').textContent = formatDate(t.date) + ' · ' +
+      (t.km >= 100 ? fmt0.format(t.km) : fmt1.format(t.km)) + ' km · ' +
+      fmt1.format(t.avgCons || 0) + ' L/100' + (t.obd ? ' · OBD gemessen' : '');
+    box.hidden = false;
+    document.body.classList.add('editor-open');
+    $('teName').focus();
+    $('teName').select();
+  }
+
+  function closeEditor() {
+    const box = $('tripEditor');
+    if (!box || box.hidden) return;
+    box.hidden = true;
+    editorId = null;
+    document.body.classList.remove('editor-open');
+    if (lastFocused && lastFocused.focus) lastFocused.focus({ preventScroll: true });
+  }
+
+  async function saveEditor(e) {
+    if (e) e.preventDefault();
+    if (!editorId || !window.TripStore) return;
+    const name = $('teName').value.trim() || 'Fahrt';
+    const notes = $('teNotes').value.trim();
+    try {
+      await TripStore.updateMeta(editorId, { name, notes });
+      if (state.trip && state.trip.id === editorId) {
+        state.trip.name = name;
+        state.trip.meta.notes = notes;
+        $('tripName').textContent = name;
+      }
+      await refreshTrips();
+      closeEditor();
+      toast('Fahrt aktualisiert');
+    } catch (err) {
+      toast('Änderung konnte nicht gespeichert werden.', true);
+    }
+  }
+
+  /* ---------- Gesamtsicherung ---------- */
+
+  function deliverFile(name, mime, text) {
+    if (window.AndroidBridge && typeof AndroidBridge.shareFile === 'function') {
+      AndroidBridge.shareFile(name, mime, text);
+      return;
+    }
+    const blob = new Blob([text], { type: mime });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  function tripForFile(trip) {
+    return {
+      name: trip.name,
+      savedAt: trip.savedAt,
+      meta: trip.meta,
+      stats: trip.stats,
+      stops: trip.stops || [],
+      points: trip.points.map((p) => ({
+        lat: Number(p.lat.toFixed(6)),
+        lng: Number(p.lng.toFixed(6)),
+        ele: p.ele,
+        speed: p.speed,
+        cons: p.cons,
+        consSrc: p.consSrc || undefined,
+        dist: p.dist,
+        time: p.time,
+        phase: p.phase || undefined,
+        bearing: p.bearing,
+        rpm: p.rpm != null ? p.rpm : undefined,
+        coolant: p.coolant != null ? p.coolant : undefined,
+        load: p.load != null ? p.load : undefined,
+        throttle: p.throttle != null ? p.throttle : undefined,
+        fuel: p.fuel != null ? p.fuel : undefined
+      }))
+    };
+  }
+
+  async function exportBackup() {
+    if (!window.TripStore) return;
+    try {
+      const all = await TripStore.all();
+      if (!all.length) {
+        toast('Noch keine Fahrten zum Sichern', true);
+        return;
+      }
+      const data = {
+        kind: 'fahrtprofil-backup',
+        version: 2,
+        exportedAt: new Date().toISOString(),
+        trips: all.map(tripForFile)
+      };
+      const name = 'fahrtprofil-sicherung-' + new Date().toISOString().slice(0, 10) + '.json';
+      deliverFile(name, 'application/json', JSON.stringify(data, null, 2));
+      toast(all.length + (all.length === 1 ? ' Fahrt gesichert' : ' Fahrten gesichert'));
+    } catch (err) {
+      toast('Sicherung fehlgeschlagen.', true);
+    }
+  }
+
+  async function importBackup(file) {
+    if (!window.TripData || !window.TripStore) return;
+    try {
+      const trips = await TripData.readAny(file);
+      if (!trips.length) throw new Error('Keine Fahrten in der Datei gefunden.');
+      let ok = 0;
+      for (const trip of trips) {
+        try {
+          await TripStore.save(trip);
+          ok++;
+        } catch (err) { /* eine defekte Fahrt stoppt die Sicherung nicht */ }
+      }
+      await refreshTrips();
+      toast(ok + (ok === 1 ? ' Fahrt' : ' Fahrten') + ' importiert' + (ok < trips.length ? ' · ' + (trips.length - ok) + ' übersprungen' : ''));
+    } catch (err) {
+      toast(err.message || 'Sicherung konnte nicht gelesen werden.', true);
     }
   }
 
@@ -1218,7 +1467,8 @@
 
     const badge = $('sourceBadge');
     let label = trip.meta.label || (trip.meta.source === 'simulation' ? 'Simulation' : 'Import');
-    if (trip.meta.source !== 'simulation' && trip.meta.estimatedCons) label += ' · Verbrauch geschätzt';
+    if (trip.meta.obd && label.indexOf('OBD') < 0) label += ' · OBD';
+    else if (trip.meta.source !== 'simulation' && trip.meta.estimatedCons) label += ' · Verbrauch geschätzt';
     badge.textContent = label;
     badge.classList.toggle('import', trip.meta.source !== 'simulation');
 
@@ -1285,6 +1535,38 @@
     $('btnTripsRail').addEventListener('click', openTrips);
     $('tripsClose').addEventListener('click', closeTrips);
 
+    $('tripSearch').addEventListener('input', (e) => {
+      tripsView.q = e.target.value;
+      renderTripsList(visibleTrips());
+    });
+
+    $('tripFilters').addEventListener('click', (e) => {
+      const btn = e.target.closest && e.target.closest('.tp-chip');
+      if (!btn) return;
+      tripsView.filter = btn.dataset.filter || 'all';
+      document.querySelectorAll('#tripFilters .tp-chip').forEach((b) => b.classList.toggle('active', b === btn));
+      renderTripsList(visibleTrips());
+    });
+
+    $('tripSort').addEventListener('change', (e) => {
+      tripsView.sort = e.target.value;
+      renderTripsList(visibleTrips());
+    });
+
+    $('btnBackup').addEventListener('click', exportBackup);
+    $('btnRestore').addEventListener('click', () => $('backupInput').click());
+    $('backupInput').addEventListener('change', (e) => {
+      const file = e.target.files && e.target.files[0];
+      e.target.value = '';
+      if (file) importBackup(file);
+    });
+
+    $('teForm').addEventListener('submit', saveEditor);
+    $('teCancel').addEventListener('click', closeEditor);
+    $('tripEditor').addEventListener('click', (e) => {
+      if (e.target === $('tripEditor')) closeEditor();
+    });
+
     $('btnShuffle').addEventListener('click', () => {
       startTrip(TripSim.buildSimulation(Date.now()), true);
       toast('Neue Fahrt simuliert – ' + fmt1.format(state.trip.stats.totalDist / 1000) + ' km');
@@ -1310,6 +1592,10 @@
 
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
+        if (!$('tripEditor').hidden) {
+          closeEditor();
+          return;
+        }
         if (!tripsDrawer.hidden) {
           closeTrips();
           return;
@@ -1362,40 +1648,52 @@
     if (!state.trip) return;
     const trip = state.trip;
     const data = {
+      kind: 'fahrtprofil-trip',
       name: trip.name,
       date: trip.meta.date,
       source: trip.meta.source,
+      notes: trip.meta.notes || '',
+      obd: !!trip.meta.obd,
+      consSource: trip.meta.consSource || '',
+      stops: trip.stops || [],
       points: trip.points.map((p) => ({
         lat: Number(p.lat.toFixed(6)),
         lng: Number(p.lng.toFixed(6)),
         ele: Math.round(p.ele * 10) / 10,
         speed: Math.round(p.speed * 10) / 10,
         cons: Math.round(p.cons * 100) / 100,
+        consSrc: p.consSrc || undefined,
         dist: Math.round(p.dist),
         time: Math.round(p.time * 10) / 10,
-        phase: p.phase || undefined
+        phase: p.phase || undefined,
+        rpm: p.rpm != null ? Math.round(p.rpm) : undefined,
+        coolant: p.coolant != null ? Math.round(p.coolant * 10) / 10 : undefined,
+        load: p.load != null ? Math.round(p.load * 10) / 10 : undefined,
+        throttle: p.throttle != null ? Math.round(p.throttle * 10) / 10 : undefined,
+        fuel: p.fuel != null ? Math.round(p.fuel * 10) / 10 : undefined
       }))
     };
     const fileName = 'fahrtprofil-' + new Date().toISOString().slice(0, 10) + '.json';
-    const text = JSON.stringify(data, null, 2);
-
-    // In der Android-App öffnet sich das Teilen-Menü (Download per Blob geht im WebView nicht).
-    if (window.AndroidBridge && typeof AndroidBridge.shareFile === 'function') {
-      AndroidBridge.shareFile(fileName, 'application/json', text);
-      return;
-    }
-
-    const blob = new Blob([text], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = fileName;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    deliverFile(fileName, 'application/json', JSON.stringify(data, null, 2));
     toast('Fahrt als JSON exportiert');
   }
+
+  function gpsLive() {
+    if (!rec.active) return { active: false };
+    const last = rec.points[rec.points.length - 1];
+    return {
+      active: true,
+      speed: rec.lastSpeed,
+      points: rec.points.length,
+      distance: rec.distance,
+      elapsed: (Date.now() - rec.start) / 1000,
+      lat: last ? last.lat : null,
+      lng: last ? last.lng : null,
+      obd: rec.obdPoints
+    };
+  }
+
+  window.FahrtApp = { gpsLive, refreshTrips, openTrips, closeTrips };
 
   function toast(msg, isError) {
     const el = $('toast');

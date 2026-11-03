@@ -123,22 +123,51 @@
       const ds = points[i].dist - points[i - 1].dist;
       fuel += ((points[i].cons + points[i - 1].cons) / 2 / 100) * (ds / 1000);
     }
-    let maxCons = 0, maxSpeed = 0, sumCons = 0;
+    let maxCons = 0, maxSpeed = 0, maxRpm = 0, maxCoolant = 0, obdPoints = 0;
     for (const p of points) {
       if (p.cons > maxCons) maxCons = p.cons;
       if (p.speed > maxSpeed) maxSpeed = p.speed;
-      sumCons += p.cons;
+      if (p.rpm > maxRpm) maxRpm = p.rpm;
+      if (p.coolant > maxCoolant) maxCoolant = p.coolant;
+      if (p.consSrc === 'obd' || p.obd) obdPoints++;
     }
-    const avgCons = (fuel / (totalDist / 1000)) * 100;
+    const duration = points[points.length - 1].time;
+    const avgCons = totalDist > 1 ? (fuel / (totalDist / 1000)) * 100 : 0;
     return {
       totalDist,
-      duration: points[points.length - 1].time,
+      duration,
       avgCons: isFinite(avgCons) ? avgCons : 0,
       maxCons,
       maxSpeed,
-      avgSpeed: totalDist / 1000 / (points[points.length - 1].time / 3600),
-      fuel
+      avgSpeed: duration > 0 ? totalDist / 1000 / (duration / 3600) : 0,
+      fuel,
+      obdPoints,
+      maxRpm,
+      maxCoolant
     };
+  }
+
+  // Hält an, wenn das Tempo länger als 12 s unter 2,5 km/h liegt.
+  // Solche Standzeiten bekommen im Diagramm eine eigene Markierung.
+  function detectStops(points) {
+    const stops = [];
+    let i = 1;
+    while (i < points.length) {
+      if (points[i].speed >= 2.5) { i++; continue; }
+      let start = i;
+      let end = i;
+      while (end + 1 < points.length && points[end + 1].speed < 2.5) end++;
+      const dwell = points[end].time - points[start].time;
+      if (dwell >= 12) {
+        stops.push({
+          idx: Math.round((start + end) / 2),
+          dist: Math.round(points[start].dist * 10) / 10,
+          dwell: Math.round(dwell)
+        });
+      }
+      i = end + 1;
+    }
+    return stops;
   }
 
   function buildSimulation(seed) {
@@ -261,6 +290,7 @@
       pts[i].speed = sp[i];
       pts[i].cons = cons[i];
       pts[i].accel = accS[i];
+      pts[i].consSrc = 'estimate';
       pts[i].bearing = bearing(pts[i], pts[Math.min(n - 1, i + 3)] || pts[i]);
     }
 
@@ -273,7 +303,8 @@
         date: date.toISOString(),
         seed,
         label: 'Simulation',
-        estimatedCons: true
+        estimatedCons: true,
+        consSource: 'estimate'
       },
       points: pts,
       stats
@@ -287,15 +318,27 @@
     meta = meta || {};
     if (!raw || raw.length < 2) throw new Error('Zu wenige GPS-Punkte in der Datei.');
 
+    const num = (v) => {
+      if (v === null || v === undefined || v === '') return null;
+      const n = Number(v);
+      return Number.isFinite(n) ? n : null;
+    };
     const pts = raw.map((p) => ({
       lat: Number(p.lat),
       lng: Number(p.lng),
-      ele: Number.isFinite(Number(p.ele)) ? Number(p.ele) : null,
-      speed: Number.isFinite(Number(p.speed)) ? Number(p.speed) : null,
-      cons: Number.isFinite(Number(p.cons)) ? Number(p.cons) : null,
-      time: Number.isFinite(Number(p.time)) ? Number(p.time) : null,
-      dist: Number.isFinite(Number(p.dist)) ? Number(p.dist) : null,
-      phase: p.phase || null
+      ele: num(p.ele),
+      speed: num(p.speed),
+      cons: num(p.cons),
+      time: num(p.time),
+      dist: num(p.dist),
+      phase: p.phase || null,
+      rpm: num(p.rpm),
+      coolant: num(p.coolant),
+      load: num(p.load),
+      throttle: num(p.throttle),
+      fuel: num(p.fuel),
+      consSrc: p.consSrc || null,
+      obd: !!p.obd
     })).filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lng));
 
     if (pts.length < 2) throw new Error('Keine gültigen Koordinaten gefunden.');
@@ -362,11 +405,16 @@
     }
 
     // Verbrauch: vorhandene Werte übernehmen, fehlende schätzen
-    let estimated = false;
+    let estimatedCount = 0;
+    let measuredCount = 0;
     for (let i = 0; i < n; i++) {
       if (pts[i].cons === null) {
-        estimated = true;
+        estimatedCount++;
         pts[i].cons = estimateConsumption(pts[i].speed, pts[i].grade, pts[i].accel, null);
+        pts[i].consSrc = 'estimate';
+      } else {
+        measuredCount++;
+        if (!pts[i].consSrc) pts[i].consSrc = 'file';
       }
     }
 
@@ -374,6 +422,8 @@
       pts[i].bearing = bearing(pts[i], pts[Math.min(n - 1, i + 3)] || pts[i]);
     }
 
+    const stops = Array.isArray(meta.stops) && meta.stops.length ? meta.stops : detectStops(pts);
+    const obdPoints = pts.filter((p) => p.consSrc === 'obd' || p.obd).length;
     const stats = buildStats(pts, meta);
     return {
       name: meta.name || 'Importierte Fahrt',
@@ -381,12 +431,17 @@
         source: meta.source || 'import',
         date: meta.date || (firstAbsTime !== null ? new Date(firstAbsTime * 1000).toISOString() : new Date().toISOString()),
         label: meta.label || 'Import',
-        estimatedCons: meta.estimatedCons !== undefined ? meta.estimatedCons : estimated,
-        fileName: meta.fileName || null
+        estimatedCons: meta.estimatedCons !== undefined
+          ? meta.estimatedCons
+          : (measuredCount === 0 || estimatedCount > measuredCount),
+        fileName: meta.fileName || null,
+        notes: String(meta.notes || '').slice(0, 400),
+        obd: !!meta.obd || obdPoints > 0,
+        consSource: meta.consSource || (obdPoints > 0 ? 'obd' : (measuredCount > 0 ? 'file' : 'estimate'))
       },
       points: pts,
       stats,
-      stops: []
+      stops
     };
   }
 
@@ -394,6 +449,7 @@
     buildSimulation,
     finalize,
     estimateConsumption,
-    haversine
+    haversine,
+    detectStops
   };
 })();
