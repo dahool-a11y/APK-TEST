@@ -1,17 +1,14 @@
 package de.blumenthalmedia.balltest
 
 import android.content.BroadcastReceiver
-import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
-import android.content.ServiceConnection
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
-import android.os.IBinder
 import android.view.ViewGroup
 import android.widget.Button
 import android.widget.LinearLayout
@@ -30,12 +27,13 @@ import java.util.zip.ZipFile
  *  1. Geräteinfos, serielle Ports, Pakete
  *  2. Textfunde aus der CAN-App des Radios (Manifest und Programmcode): Schnittstellen, Aktionen, Werte
  *  3. Live-Mitschnitt: lauscht auf die dort gefundenen Meldungen und zeigt jede Meldung samt Werten
+ *  4. Zugriffs-Sonde: prüft, ob Dienste, Provider und Empfänger der Hersteller-Apps
+ *     für uns überhaupt lesbar sind (siehe AccessProbe)
  * Es werden keine Befehle an das Fahrzeug oder die CAN-App gesendet.
  */
 class DiagActivity : ComponentActivity() {
 
     private val canPackage = "com.hcn.autocan"
-    private val canService = "com.hcn.autocan.service.CanService"
 
     private val keywords = listOf(
         "can", "syu", "mcu", "fyt", "hiworld", "raise", "essgoo", "vehicle", "car", "obd",
@@ -254,10 +252,6 @@ class DiagActivity : ComponentActivity() {
         }
         sb.appendLine()
 
-        sb.appendLine("== Dienst-Schnittstelle (nur Name, ohne Aufruf) ==")
-        sb.appendLine(probeBinder())
-        sb.appendLine()
-
         sb.appendLine("== Serielle Ports ==")
         File("/dev").listFiles { f -> f.name.startsWith("tty") && !f.name.startsWith("ttyp") }
             ?.sortedBy { it.name }?.forEach { sb.appendLine("${it.path} read=${it.canRead()} write=${it.canWrite()}") }
@@ -274,26 +268,22 @@ class DiagActivity : ComponentActivity() {
                 sb.appendLine("  $n ${if (sys) "SYSTEM" else ""}")
             }
         }
+        appendAccessProbe(sb)
         return sb.toString()
     }
 
-    /** Verbindet kurz mit dem Dienst und liest nur den Schnittstellennamen. */
-    private fun probeBinder(): String {
-        val latch = java.util.concurrent.CountDownLatch(1)
-        var result = "keine Verbindung (Dienst nicht erreichbar oder Berechtigung fehlt)"
-        val conn = object : ServiceConnection {
-            override fun onServiceConnected(name: ComponentName, service: IBinder) {
-                result = "verbunden, Schnittstelle: ${try { service.interfaceDescriptor } catch (e: Exception) { e.toString() }}"
-                latch.countDown()
+    /**
+     * Zugriffs-Sonde als letzter Abschnitt: Sie braucht die Kandidaten aus dem
+     * APK-Text und läuft deshalb erst, wenn der Rest des Berichts fertig ist.
+     */
+    private fun appendAccessProbe(sb: StringBuilder) {
+        sb.appendLine()
+        sb.appendLine(
+            try {
+                AccessProbe(this, actions).report()
+            } catch (e: Throwable) {
+                "== Zugriffs-Sonde ==\nFehler: ${e.javaClass.simpleName}: ${e.message?.take(120)}"
             }
-            override fun onServiceDisconnected(name: ComponentName) {}
-        }
-        return try {
-            val ok = bindService(Intent().setComponent(ComponentName(canPackage, canService)), conn, Context.BIND_AUTO_CREATE)
-            if (!ok) result = "bindService abgelehnt"
-            else latch.await(3, java.util.concurrent.TimeUnit.SECONDS)
-            try { unbindService(conn) } catch (_: Exception) { }
-            result
-        } catch (e: Exception) { "Fehler: $e" }
+        )
     }
 }

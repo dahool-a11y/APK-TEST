@@ -304,6 +304,30 @@ ab und speichert `rpm`, `coolant`, `load`, `throttle`, `fuel` und – bei Tempo 
 3 km/h – `cons` samt `consSrc: "obd"`. Damit sind spätere Auswertungen ohne
 Adapter reproduzierbar.
 
+### CAN-Sonde im Radio (nur lesend)
+
+Die Radio-App **CAN-Diagnose** (`app/.../DiagActivity.kt`) erzeugt einen Bericht
+über die CAN-Anbindung des Geräts. Der letzte Abschnitt stammt aus
+`AccessProbe.kt` und beantwortet die Frage, ob Fahrzeugdaten für eine fremde App
+überhaupt erreichbar sind: exportierte Dienste samt `permission`, exportierte
+Provider, deklarierte Hersteller-Berechtigungen, die echten Intent-Registrierungen
+der Kandidaten-Actions sowie die sichtbaren App-Namen (damit lässt sich klären,
+welches Paket hinter „CARINFO“ steckt).
+
+Die Sonde ist strikt lesend und ändert nichts am Fahrzeug oder an fremden Apps:
+
+- `bindService` nur mit `flags = 0` – ohne `BIND_AUTO_CREATE`, startet also keinen Dienst
+- Provider ausschließlich per `query` (SELECT), nie `insert`/`update`/`delete`/`call`
+- kein `sendBroadcast`, kein `startService`, kein `startActivity`
+- serielle Knoten (`/dev/tty*`) werden **nicht geöffnet** – Lesen würde dem
+  MCU-Dienst Bytes aus dem Puffer stehlen
+- vom Binder wird nur der Schnittstellenname erfragt (Standard-Befehl
+  `INTERFACE_TRANSACTION`, den das System selbst beantwortet)
+
+Ergebnis: Steht bei einem Dienst `exported=true` und `permission=-`, ist ein
+eigener Lesezugriff möglich. Steht dort eine `signature`-Permission oder
+`exported=false`, ist der Weg zu – dann bleibt nur der ELM327-Adapter.
+
 ## Projektstruktur
 
 ```
